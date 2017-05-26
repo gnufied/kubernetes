@@ -236,7 +236,7 @@ func ClusterRoles() []rbac.ClusterRole {
 				rbac.NewRule("get").Groups(legacyGroup).Resources("secrets", "configmaps").RuleOrDie(),
 				// TODO: restrict to claims/volumes used by pods scheduled on bound node once supported
 				// Needed for persistent volumes
-				rbac.NewRule("get").Groups(legacyGroup).Resources("persistentvolumeclaims", "persistentvolumes").RuleOrDie(),
+				rbac.NewRule("get", "update", "patch").Groups(legacyGroup).Resources("persistentvolumeclaims", "persistentvolumes").RuleOrDie(),
 				// TODO: restrict to namespaces of pods scheduled on bound node once supported
 				// TODO: change glusterfs to use DNS lookup so this isn't needed?
 				// Needed for glusterfs volumes
