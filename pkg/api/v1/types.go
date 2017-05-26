@@ -542,6 +542,9 @@ type PersistentVolumeStatus struct {
 	// for machine parsing and tidy display in the CLI.
 	// +optional
 	Reason string `json:"reason,omitempty" protobuf:"bytes,3,opt,name=reason"`
+	// Represents the actual resources of the underlying volume.
+	// +optional
+	Capacity ResourceList `json:"capacity,omitempty" protobuf:"bytes,3,rep,name=capacity,casttype=ResourceList,castkey=ResourceName"`
 }
 
 // PersistentVolumeList is a list of PersistentVolume items.

@@ -1406,8 +1406,12 @@ func ValidatePersistentVolumeClaimUpdate(newPvc, oldPvc *api.PersistentVolumeCla
 		defer func() { oldPvc.Spec.VolumeName = "" }()
 	}
 
-	oldSize = oldPvc.Spec.Resources.Requests["storage"]
-	newSize = newPvc.Spec.Resources.Requests["storage"]
+	oldSize := oldPvc.Spec.Resources.Requests["storage"]
+	newSize := newPvc.Spec.Resources.Requests["storage"]
+
+	if newSize.Cmp(oldSize) < 0 {
+		allErrs = append(allErrs, field.Forbidden(field.NewPath("spec", "resources", "requests", "storage"), "field can not be lesser than previous value"))
+	}
 
 	if !apiequality.Semantic.DeepEqual(newPvc.Spec.AccessModes, oldPvc.Spec.AccessModes) {
 		allErrs = append(allErrs, field.Forbidden(field.NewPath("spec", "accessModes"), "field is immutable after creation"))

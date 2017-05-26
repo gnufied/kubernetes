@@ -474,6 +474,9 @@ type PersistentVolumeStatus struct {
 	// Reason is a brief CamelCase string that describes any failure and is meant for machine parsing and tidy display in the CLI
 	// +optional
 	Reason string
+	// Represents the actual resources of the underlying volume.
+	// +optional
+	Capacity ResourceList
 }
 
 type PersistentVolumeList struct {
