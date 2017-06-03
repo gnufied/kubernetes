@@ -18,14 +18,22 @@ package expand
 
 import (
 	"fmt"
+	"net"
 
 	"github.com/golang/glog"
+
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/runtime"
+	kcache "k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/api/v1"
 	"k8s.io/kubernetes/pkg/client/clientset_generated/clientset"
 	coreinformers "k8s.io/kubernetes/pkg/client/informers/informers_generated/externalversions/core/v1"
+	corelisters "k8s.io/kubernetes/pkg/client/listers/core/v1"
 	"k8s.io/kubernetes/pkg/cloudprovider"
+	"k8s.io/kubernetes/pkg/controller"
+	"k8s.io/kubernetes/pkg/util/io"
+	"k8s.io/kubernetes/pkg/util/mount"
 	"k8s.io/kubernetes/pkg/volume"
 )
 
@@ -60,32 +68,47 @@ func NewExpandController(
 	cloud cloudprovider.Interface,
 	plugins []volume.VolumePlugin) (ExpandController, error) {
 
-	expController := &expandController{
+	expc := &expandController{
 		kubeClient: kubeClient,
 		cloud:      cloud,
 		pvcLister:  pvcInformer.Lister(),
-		pvcSynced:  pvcInformer.Informer().HasSynced,
+		pvcsSynced: pvcInformer.Informer().HasSynced,
 	}
 
-	if err := expandController.volumePluginMgr.InitPlugins(plugins, expController); err != nil {
+	if err := expc.volumePluginMgr.InitPlugins(plugins, expc); err != nil {
 		return nil, fmt.Errorf("Could not initialize volume plugins for Expand Controller : %+v", err)
 	}
 
-	eventBroadcaster := record.NewBroadcaster()
-	eventBroadcaster.StartLogging(glog.Infof)
-	eventBroadcaster.StartRecordingToSink(&v1core.EventSinkImpl{Interface: v1core.New(kubeClient.Core().RESTClient()).Events("")})
-	recorder := eventBroadcaster.NewRecorder(api.Scheme, clientv1.EventSource{Component: "expand"})
-
 	pvcInformer.Informer().AddEventHandler(kcache.ResourceEventHandlerFuncs{
-		AddFunc:    expController.pvcAdd,
-		UpdateFunc: expController.pvcUpdate,
-		DeleteFunc: expController.pvcDelete,
+		AddFunc:    expc.pvcAdd,
+		UpdateFunc: expc.pvcUpdate,
+		DeleteFunc: expc.pvcDelete,
 	})
 
-	return expandController
+	return expc, nil
 }
 
-func (expController *expandController) pvcUpdate(oldObj, newObj interface{}) {
+func (expc *expandController) pvcAdd(obj interface{}) {
+	// noop
+}
+
+func (expc *expandController) pvcDelete(obj interface{}) {
+	// noop
+}
+
+func (expc *expandController) Run(stopCh <-chan struct{}) {
+	defer runtime.HandleCrash()
+	glog.Infof("Starting expand controller")
+	defer glog.Infof("Shutting down expand controller")
+
+	if !controller.WaitForCacheSync("expand", stopCh, expc.pvcsSynced) {
+		return
+	}
+
+	<-stopCh
+}
+
+func (expc *expandController) pvcUpdate(oldObj, newObj interface{}) {
 	oldPvc, ok := oldObj.(*v1.PersistentVolumeClaim)
 
 	if oldPvc == nil || !ok {
@@ -96,5 +119,60 @@ func (expController *expandController) pvcUpdate(oldObj, newObj interface{}) {
 
 	if newPvc == nil || !ok {
 		return
+	}
+}
+
+// Impelementing VolumeHost interface
+func (expc *expandController) GetPluginDir(pluginName string) string {
+	return ""
+}
+
+func (expc *expandController) GetPodVolumeDir(podUID types.UID, pluginName string, volumeName string) string {
+	return ""
+}
+
+func (expc *expandController) GetPodPluginDir(podUID types.UID, pluginName string) string {
+	return ""
+}
+
+func (expc *expandController) GetKubeClient() clientset.Interface {
+	return expc.kubeClient
+}
+
+func (expc *expandController) NewWrapperMounter(volName string, spec volume.Spec, pod *v1.Pod, opts volume.VolumeOptions) (volume.Mounter, error) {
+	return nil, fmt.Errorf("NewWrapperMounter not supported by expand controller's VolumeHost implementation")
+}
+
+func (expc *expandController) NewWrapperUnmounter(volName string, spec volume.Spec, podUID types.UID) (volume.Unmounter, error) {
+	return nil, fmt.Errorf("NewWrapperUnmounter not supported by expand controller's VolumeHost implementation")
+}
+
+func (expc *expandController) GetCloudProvider() cloudprovider.Interface {
+	return expc.cloud
+}
+
+func (expc *expandController) GetMounter() mount.Interface {
+	return nil
+}
+
+func (expc *expandController) GetWriter() io.Writer {
+	return nil
+}
+
+func (expc *expandController) GetHostName() string {
+	return ""
+}
+
+func (expc *expandController) GetHostIP() (net.IP, error) {
+	return nil, fmt.Errorf("GetHostIP() not supported by expand controller's VolumeHost implementation")
+}
+
+func (expc *expandController) GetNodeAllocatable() (v1.ResourceList, error) {
+	return v1.ResourceList{}, nil
+}
+
+func (expc *expandController) GetSecretFunc() func(namespace, name string) (*v1.Secret, error) {
+	return func(_, _ string) (*v1.Secret, error) {
+		return nil, fmt.Errorf("GetSecret unsupported in expandController")
 	}
 }
