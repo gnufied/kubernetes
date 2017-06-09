@@ -19,6 +19,7 @@ package expand
 import (
 	"fmt"
 	"net"
+	"time"
 
 	"github.com/golang/glog"
 
@@ -32,11 +33,18 @@ import (
 	corelisters "k8s.io/kubernetes/pkg/client/listers/core/v1"
 	"k8s.io/kubernetes/pkg/cloudprovider"
 	"k8s.io/kubernetes/pkg/controller"
+	"k8s.io/kubernetes/pkg/controller/volume/expand/cache"
+	"k8s.io/kubernetes/pkg/controller/volume/expand/reconciler"
 	"k8s.io/kubernetes/pkg/util/io"
 	"k8s.io/kubernetes/pkg/util/mount"
 	"k8s.io/kubernetes/pkg/volume"
 )
 
+const (
+	reconcilerLoopPeriod time.Duration = 100 * time.Millisecond
+)
+
+// ExpandController expands the pvs
 type ExpandController interface {
 	Run(stopCh <-chan struct{})
 }
@@ -60,6 +68,15 @@ type expandController struct {
 
 	// recorder is used to record events in the API server
 	recorder record.EventRecorder
+
+	// ActualStateOfWorld
+	asow cache.ActualStateOfWorld
+
+	// DesiredStateOfWorld
+	dsow cache.DesiredStateOfWorld
+
+	// Reconciler
+	reconciler reconciler.Reconciler
 }
 
 func NewExpandController(
@@ -79,11 +96,16 @@ func NewExpandController(
 		return nil, fmt.Errorf("Could not initialize volume plugins for Expand Controller : %+v", err)
 	}
 
+	expc.asow = cache.NewActualStateOfWorld()
+	expc.dsow = cache.NewDesiredStateOfWorld()
+
 	pvcInformer.Informer().AddEventHandler(kcache.ResourceEventHandlerFuncs{
 		AddFunc:    expc.pvcAdd,
 		UpdateFunc: expc.pvcUpdate,
 		DeleteFunc: expc.pvcDelete,
 	})
+
+	expc.reconciler = reconciler.NewReconciler(reconcilerLoopPeriod, expc.dsow)
 
 	return expc, nil
 }
@@ -105,6 +127,9 @@ func (expc *expandController) Run(stopCh <-chan struct{}) {
 		return
 	}
 
+	// Run reconciler
+	expc.reconciler.Run(stopCh)
+
 	<-stopCh
 }
 
@@ -120,6 +145,7 @@ func (expc *expandController) pvcUpdate(oldObj, newObj interface{}) {
 	if newPvc == nil || !ok {
 		return
 	}
+	expc.dsow.AddPvcUpdate(newPvc, oldPvc)
 }
 
 // Impelementing VolumeHost interface

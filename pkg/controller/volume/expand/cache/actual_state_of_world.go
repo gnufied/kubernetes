@@ -14,11 +14,25 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package expand
+package cache
+
+import (
+	"k8s.io/kubernetes/pkg/api/v1"
+)
 
 // implement interface of actual state of world
 type ActualStateOfWorld interface {
+	AddPvcUpdate(newPvc *v1.PersistentVolumeClaim, oldPvc *v1.PersistentVolumeClaim)
 }
 
 type actualStateOfWorld struct {
+}
+
+func NewActualStateOfWorld() ActualStateOfWorld {
+	asow := &actualStateOfWorld{}
+	return asow
+}
+
+func (asow *actualStateOfWorld) AddPvcUpdate(newPvc *v1.PersistentVolumeClaim, oldPvc *v1.PersistentVolumeClaim) {
+
 }
