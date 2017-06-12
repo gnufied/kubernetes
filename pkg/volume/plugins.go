@@ -178,6 +178,13 @@ type AttachableVolumePlugin interface {
 	GetDeviceMountRefs(deviceMountPath string) ([]string, error)
 }
 
+// ExpandableVolumePlugin is an extended interface of VolumePlugin and is used for volumes that can be
+// expanded
+type ExpandableVolumePlugin interface {
+	VolumePlugin
+	NewExpander() (Expander, error)
+}
+
 // VolumeHost is an interface that plugins can use to access the kubelet.
 type VolumeHost interface {
 	// GetPluginDir returns the absolute path to a directory under which
@@ -511,6 +518,18 @@ func (pm *VolumePluginMgr) FindAttachablePluginBySpec(spec *Spec) (AttachableVol
 	}
 	if attachableVolumePlugin, ok := volumePlugin.(AttachableVolumePlugin); ok {
 		return attachableVolumePlugin, nil
+	}
+	return nil, nil
+}
+
+func (pm *VolumePluginMgr) FindExpandablePluginBySpec(spec *Spec) (ExpandableVolumePlugin, error) {
+	volumePlugin, err := pm.FindPluginBySpec(spec)
+	if err != nil {
+		return nil, err
+	}
+
+	if expandableVolumePlugin, ok := volumePlugin.(ExpandableVolumePlugin); ok {
+		return expandableVolumePlugin, nil
 	}
 	return nil, nil
 }

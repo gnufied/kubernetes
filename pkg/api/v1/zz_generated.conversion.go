@@ -3100,6 +3100,7 @@ func autoConvert_v1_PersistentVolumeStatus_To_api_PersistentVolumeStatus(in *Per
 	out.Phase = api.PersistentVolumePhase(in.Phase)
 	out.Message = in.Message
 	out.Reason = in.Reason
+	out.Capacity = *(*api.ResourceList)(unsafe.Pointer(&in.Capacity))
 	return nil
 }
 
@@ -3112,6 +3113,7 @@ func autoConvert_api_PersistentVolumeStatus_To_v1_PersistentVolumeStatus(in *api
 	out.Phase = PersistentVolumePhase(in.Phase)
 	out.Message = in.Message
 	out.Reason = in.Reason
+	out.Capacity = *(*ResourceList)(unsafe.Pointer(&in.Capacity))
 	return nil
 }
 

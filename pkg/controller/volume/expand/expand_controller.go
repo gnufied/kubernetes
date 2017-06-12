@@ -25,6 +25,9 @@ import (
 
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/runtime"
+	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
+	"k8s.io/client-go/pkg/api"
+	clientv1 "k8s.io/client-go/pkg/api/v1"
 	kcache "k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/kubernetes/pkg/api/v1"
@@ -38,6 +41,7 @@ import (
 	"k8s.io/kubernetes/pkg/util/io"
 	"k8s.io/kubernetes/pkg/util/mount"
 	"k8s.io/kubernetes/pkg/volume"
+	"k8s.io/kubernetes/pkg/volume/util/operationexecutor"
 )
 
 const (
@@ -77,6 +81,9 @@ type expandController struct {
 
 	// Reconciler
 	reconciler reconciler.Reconciler
+
+	// Operation executor
+	opExecutor operationexecutor.OperationExecutor
 }
 
 func NewExpandController(
@@ -95,6 +102,17 @@ func NewExpandController(
 	if err := expc.volumePluginMgr.InitPlugins(plugins, expc); err != nil {
 		return nil, fmt.Errorf("Could not initialize volume plugins for Expand Controller : %+v", err)
 	}
+
+	eventBroadcaster := record.NewBroadcaster()
+	eventBroadcaster.StartLogging(glog.Infof)
+	eventBroadcaster.StartRecordingToSink(&v1core.EventSinkImpl{Interface: v1core.New(kubeClient.Core().RESTClient()).Events("")})
+	recorder := eventBroadcaster.NewRecorder(api.Scheme, clientv1.EventSource{Component: "volume_expand"})
+
+	expc.opExecutor = operationexecutor.NewOperationExecutor(operationexecutor.NewOperationGenerator(
+		kubeClient,
+		&expc.volumePluginMgr,
+		recorder,
+		false))
 
 	expc.asow = cache.NewActualStateOfWorld()
 	expc.dsow = cache.NewDesiredStateOfWorld()

@@ -20,7 +20,9 @@ import (
 
 	"github.com/golang/glog"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/kubernetes/pkg/api/v1"
 	"k8s.io/kubernetes/pkg/controller/volume/expand/cache"
+	"k8s.io/kubernetes/pkg/volume/util/operationexecutor"
 )
 
 type Reconciler interface {
@@ -30,13 +32,16 @@ type Reconciler interface {
 type reconciler struct {
 	loopPeriod          time.Duration
 	desiredStateOfWorld cache.DesiredStateOfWorld
+	opsExecutor         operationexecutor.OperationExecutor
 }
 
 func NewReconciler(
 	loopPeriod time.Duration,
+	opsExecutor operationexecutor.OperationExecutor,
 	dsow cache.DesiredStateOfWorld) Reconciler {
 	rc := &reconciler{
 		loopPeriod:          loopPeriod,
+		opsExecutor:         opsExecutor,
 		desiredStateOfWorld: dsow,
 	}
 	return rc
@@ -49,6 +54,12 @@ func (rc *reconciler) Run(stopCh <-chan struct{}) {
 func (rc *reconciler) reconcile() {
 	// Resize PVCs that require resize
 	for _, pvcWithResizeRequest := range rc.desiredStateOfWorld.GetPvcsWithResizeRequest() {
+		uniqueVolumeKey := v1.UniqueVolumeName(pvcWithResizeRequest.UniquePvcKey())
+		if rc.opsExecutor.IsOperationPending(uniqueVolumeKey, "") {
+			glog.V(10).Infof("Operation for PVC %v is already pending", pvcWithResizeRequest.UniquePvcKey())
+			continue
+		}
+		rc.opsExecutor.GrowPvc(pvcWithResizeRequest)
 		glog.Infof("Resizing PVC %s", pvcWithResizeRequest.CurrentSize)
 	}
 }

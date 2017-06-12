@@ -1953,6 +1953,9 @@ func DeepCopy_api_PersistentVolume(in interface{}, out interface{}, c *conversio
 		if err := DeepCopy_api_PersistentVolumeSpec(&in.Spec, &out.Spec, c); err != nil {
 			return err
 		}
+		if err := DeepCopy_api_PersistentVolumeStatus(&in.Status, &out.Status, c); err != nil {
+			return err
+		}
 		return nil
 	}
 }
@@ -2239,6 +2242,13 @@ func DeepCopy_api_PersistentVolumeStatus(in interface{}, out interface{}, c *con
 		in := in.(*PersistentVolumeStatus)
 		out := out.(*PersistentVolumeStatus)
 		*out = *in
+		if in.Capacity != nil {
+			in, out := &in.Capacity, &out.Capacity
+			*out = make(ResourceList)
+			for key, val := range *in {
+				(*out)[key] = val.DeepCopy()
+			}
+		}
 		return nil
 	}
 }

@@ -39,6 +39,10 @@ type PvcWithResizeRequest struct {
 	ResizeDone   bool
 }
 
+func (pvcr *PvcWithResizeRequest) UniquePvcKey() types.UniquePvcName {
+	return types.UniquePvcName(pvcr.PVC.UID)
+}
+
 func NewDesiredStateOfWorld() DesiredStateOfWorld {
 	dsow := &desiredStateOfWorld{}
 	return dsow
@@ -71,7 +75,7 @@ func (dsow *desiredStateOfWorld) GetPvcsWithResizeRequest() []*PvcWithResizeRequ
 }
 
 func (dsow *desiredStateOfWorld) MarkAsResized(pvcr *PvcWithResizeRequest) {
-	pvcUniqueName := types.UniquePvcName(pvcr.pvc.UID)
+	pvcUniqueName := pvcr.UniquePvcKey()
 
 	if pvcr, ok := dsow.pvcrs[pvcUniqueName]; ok {
 		pvcr.ResizeDone = true

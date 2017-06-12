@@ -29,6 +29,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/kubernetes/pkg/api/v1"
+	expandcache "k8s.io/kubernetes/pkg/controller/volume/expand/cache"
 	"k8s.io/kubernetes/pkg/util/mount"
 	"k8s.io/kubernetes/pkg/volume"
 	"k8s.io/kubernetes/pkg/volume/util/nestedpendingoperations"
@@ -115,6 +116,9 @@ type OperationExecutor interface {
 	// IsOperationPending returns true if an operation for the given volumeName and podName is pending,
 	// otherwise it returns false
 	IsOperationPending(volumeName v1.UniqueVolumeName, podName volumetypes.UniquePodName) bool
+
+	// Grow PVC will grow size available to PVC
+	GrowPvc(expandcache.PvcWithResizeRequest) error
 }
 
 // NewOperationExecutor returns a new instance of OperationExecutor.
@@ -527,6 +531,16 @@ type operationExecutor struct {
 
 func (oe *operationExecutor) IsOperationPending(volumeName v1.UniqueVolumeName, podName volumetypes.UniquePodName) bool {
 	return oe.pendingOperations.IsOperationPending(volumeName, podName)
+}
+
+func (oe *operationExecutor) GrowPvc(pvcWithResizeRequest expandcache.PvcWithResizeRequest) error {
+	expandFunc, err := oe.operationGenerator.GenerateExpandVolumeFunc(pvcWithResizeRequest)
+
+	if err != nil {
+		return err
+	}
+	uniqueVolumeKey := v1.UniqueVolumeName(pvcWithResizeRequest.UniquePvcKey())
+	return oe.pendingOperations.Run(uniqueVolumeKey, "", expandFunc)
 }
 
 func (oe *operationExecutor) AttachVolume(

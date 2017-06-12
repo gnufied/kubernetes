@@ -140,6 +140,7 @@ func SetObjectDefaults_PersistentVolume(in *PersistentVolume) {
 	if in.Spec.PersistentVolumeSource.ScaleIO != nil {
 		SetDefaults_ScaleIOVolumeSource(in.Spec.PersistentVolumeSource.ScaleIO)
 	}
+	SetDefaults_ResourceList(&in.Status.Capacity)
 }
 
 func SetObjectDefaults_PersistentVolumeClaim(in *PersistentVolumeClaim) {

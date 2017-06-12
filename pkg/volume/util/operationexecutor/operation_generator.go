@@ -27,6 +27,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/kubernetes/pkg/api/v1"
 	"k8s.io/kubernetes/pkg/client/clientset_generated/clientset"
+	expandcache "k8s.io/kubernetes/pkg/controller/volume/expand/cache"
 	kevents "k8s.io/kubernetes/pkg/kubelet/events"
 	"k8s.io/kubernetes/pkg/util/mount"
 	"k8s.io/kubernetes/pkg/volume"
@@ -97,6 +98,8 @@ type OperationGenerator interface {
 		map[types.NodeName][]*volume.Spec,
 		string,
 		map[*volume.Spec]v1.UniqueVolumeName, ActualStateOfWorldAttacherUpdater) (func() error, error)
+
+	GenerateExpandVolumeFunc(pvcWithResizeRequest expandcache.PvcWithResizeRequest) (func() error, error)
 }
 
 func (og *operationGenerator) GenerateVolumesAreAttachedFunc(
@@ -696,6 +699,13 @@ func (og *operationGenerator) verifyVolumeIsSafeToDetach(
 	// Volume is not marked as in use by node
 	glog.Infof(volumeToDetach.GenerateMsgDetailed("Verified volume is safe to detach", ""))
 	return nil
+}
+
+func (og *operationGenerator) GenerateExpandVolumeFunc(pvcWithResizeRequest expandcache.PvcWithResizeRequest) (func() error, error) {
+	expandFunc := func() error {
+		return nil
+	}
+	return expandFunc, nil
 }
 
 func checkMountOptionSupport(og *operationGenerator, volumeToMount VolumeToMount, plugin volume.VolumePlugin) error {
