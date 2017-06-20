@@ -20,7 +20,7 @@ import (
 	"k8s.io/kubernetes/pkg/api/v1"
 )
 
-// implement interface of actual state of world
+// ActualStateOfWorld implements interface of actual state of world
 type ActualStateOfWorld interface {
 	AddPvcUpdate(newPvc *v1.PersistentVolumeClaim, oldPvc *v1.PersistentVolumeClaim)
 }
