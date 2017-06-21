@@ -118,7 +118,7 @@ type OperationExecutor interface {
 	IsOperationPending(volumeName v1.UniqueVolumeName, podName volumetypes.UniquePodName) bool
 
 	// Grow PVC will grow size available to PVC
-	GrowPvc(expandcache.PvcWithResizeRequest) error
+	GrowPvc(*expandcache.PvcWithResizeRequest) error
 }
 
 // NewOperationExecutor returns a new instance of OperationExecutor.
@@ -533,7 +533,7 @@ func (oe *operationExecutor) IsOperationPending(volumeName v1.UniqueVolumeName, 
 	return oe.pendingOperations.IsOperationPending(volumeName, podName)
 }
 
-func (oe *operationExecutor) GrowPvc(pvcWithResizeRequest expandcache.PvcWithResizeRequest) error {
+func (oe *operationExecutor) GrowPvc(pvcWithResizeRequest *expandcache.PvcWithResizeRequest) error {
 	expandFunc, err := oe.operationGenerator.GenerateExpandVolumeFunc(pvcWithResizeRequest)
 
 	if err != nil {

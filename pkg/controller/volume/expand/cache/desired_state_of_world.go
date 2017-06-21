@@ -19,6 +19,7 @@ package cache
 import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/kubernetes/pkg/api/v1"
+	"k8s.io/kubernetes/pkg/volume"
 	"k8s.io/kubernetes/pkg/volume/util/types"
 )
 
@@ -34,6 +35,7 @@ type desiredStateOfWorld struct {
 
 type PvcWithResizeRequest struct {
 	PVC          *v1.PersistentVolumeClaim
+	VolumeSpec   *volume.Spec
 	CurrentSize  resource.Quantity
 	ExpectedSize resource.Quantity
 	ResizeDone   bool

@@ -522,6 +522,10 @@ func (pm *VolumePluginMgr) FindAttachablePluginBySpec(spec *Spec) (AttachableVol
 	return nil, nil
 }
 
+// FindExpandablePluginBySpec fetches a persistent volume plugin by name.
+// Unlike the other "FindPlugin" methods, this does not return error if no
+// plugin is found.  All volumes require a mounter and unmounter, but not
+// every volume will have an expander
 func (pm *VolumePluginMgr) FindExpandablePluginBySpec(spec *Spec) (ExpandableVolumePlugin, error) {
 	volumePlugin, err := pm.FindPluginBySpec(spec)
 	if err != nil {

@@ -64,6 +64,9 @@ type expandController struct {
 	pvcLister  corelisters.PersistentVolumeClaimLister
 	pvcsSynced kcache.InformerSynced
 
+	pvLister corelisters.PersistentVolumeLister
+	pvSynced kcache.InformerSynced
+
 	// cloud provider used by volume host
 	cloud cloudprovider.Interface
 
@@ -89,6 +92,7 @@ type expandController struct {
 func NewExpandController(
 	kubeClient clientset.Interface,
 	pvcInformer coreinformers.PersistentVolumeClaimInformer,
+	pvInformer coreinformers.PersistentVolumeInformer,
 	cloud cloudprovider.Interface,
 	plugins []volume.VolumePlugin) (ExpandController, error) {
 
@@ -97,6 +101,8 @@ func NewExpandController(
 		cloud:      cloud,
 		pvcLister:  pvcInformer.Lister(),
 		pvcsSynced: pvcInformer.Informer().HasSynced,
+		pvLister:   pvInformer.Lister(),
+		pvSynced:   pvInformer.Informer().HasSynced,
 	}
 
 	if err := expc.volumePluginMgr.InitPlugins(plugins, expc); err != nil {
@@ -141,7 +147,7 @@ func (expc *expandController) Run(stopCh <-chan struct{}) {
 	glog.Infof("Starting expand controller")
 	defer glog.Infof("Shutting down expand controller")
 
-	if !controller.WaitForCacheSync("expand", stopCh, expc.pvcsSynced) {
+	if !controller.WaitForCacheSync("expand", stopCh, expc.pvcsSynced, expc.pvSynced) {
 		return
 	}
 
@@ -164,6 +170,31 @@ func (expc *expandController) pvcUpdate(oldObj, newObj interface{}) {
 		return
 	}
 	expc.dsow.AddPvcUpdate(newPvc, oldPvc)
+}
+
+func CreateVolumeSpec(
+	pvcNamespace string,
+	pvc *v1.PersistentVolumeClaim,
+	pvcLister corelisters.PersistentVolumeClaimLister,
+	pvLister corelisters.PersistentVolumeLister) (*volume.Spec, error) {
+
+	volumeName := pvc.Spec.VolumeName
+	pv, err := pvLister.Get(volumeName)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to find PV %q in PV informer cache : %v", volumeName, err)
+	}
+
+	clonedPvObject, err := api.Scheme.DeepCopy(pv)
+	if err != nil || clonedPvObject == nil {
+		return nil, fmt.Errorf("failed to deep copy %q PV object. err=%v", volumeName, err)
+	}
+
+	clonedPV, ok := clonedPvObject.(*v1.PersistentVolume)
+	if !ok {
+		return nil, fmt.Errorf("failed to cast %q clonedPV %#v to PersistentVolume", volumeName, pv)
+	}
+	return volume.NewSpecFromPersistentVolume(clonedPV, false), nil
 }
 
 // Impelementing VolumeHost interface

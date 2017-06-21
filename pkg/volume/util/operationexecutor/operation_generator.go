@@ -99,7 +99,7 @@ type OperationGenerator interface {
 		string,
 		map[*volume.Spec]v1.UniqueVolumeName, ActualStateOfWorldAttacherUpdater) (func() error, error)
 
-	GenerateExpandVolumeFunc(pvcWithResizeRequest expandcache.PvcWithResizeRequest) (func() error, error)
+	GenerateExpandVolumeFunc(pvcWithResizeRequest *expandcache.PvcWithResizeRequest) (func() error, error)
 }
 
 func (og *operationGenerator) GenerateVolumesAreAttachedFunc(
@@ -701,8 +701,8 @@ func (og *operationGenerator) verifyVolumeIsSafeToDetach(
 	return nil
 }
 
-func (og *operationGenerator) GenerateExpandVolumeFunc(pvcWithResizeRequest expandcache.PvcWithResizeRequest) (func() error, error) {
-	expandFunc := func() error {
+func (og *operationGenerator) GenerateExpandVolumeFunc(pvcWithResizeRequest *expandcache.PvcWithResizeRequest) (func() error, error) {
+	expandFunc := func() {
 		return nil
 	}
 	return expandFunc, nil
