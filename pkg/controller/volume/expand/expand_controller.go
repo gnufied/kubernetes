@@ -129,7 +129,7 @@ func NewExpandController(
 		DeleteFunc: expc.pvcDelete,
 	})
 
-	expc.reconciler = reconciler.NewReconciler(reconcilerLoopPeriod, expc.dsow)
+	expc.reconciler = reconciler.NewReconciler(reconcilerLoopPeriod, expc.opExecutor, expc.dsow)
 
 	return expc, nil
 }
@@ -158,22 +158,29 @@ func (expc *expandController) Run(stopCh <-chan struct{}) {
 }
 
 func (expc *expandController) pvcUpdate(oldObj, newObj interface{}) {
+	glog.Infof("********** Received a pvc update")
 	oldPvc, ok := oldObj.(*v1.PersistentVolumeClaim)
 
 	if oldPvc == nil || !ok {
+		glog.Infof("********** failed to convert update object to pvc")
 		return
 	}
 
 	newPvc, ok := newObj.(*v1.PersistentVolumeClaim)
 
 	if newPvc == nil || !ok {
+		glog.Infof("********** Failed to convert new pvc object")
 		return
 	}
-	expc.dsow.AddPvcUpdate(newPvc, oldPvc)
+	volumeSpec, err := CreateVolumeSpec(newPvc, expc.pvcLister, expc.pvLister)
+	if err != nil {
+		glog.Errorf("Error creating volume spec during update event : %v", err)
+		return
+	}
+	expc.dsow.AddPvcUpdate(newPvc, oldPvc, volumeSpec)
 }
 
 func CreateVolumeSpec(
-	pvcNamespace string,
 	pvc *v1.PersistentVolumeClaim,
 	pvcLister corelisters.PersistentVolumeClaimLister,
 	pvLister corelisters.PersistentVolumeLister) (*volume.Spec, error) {

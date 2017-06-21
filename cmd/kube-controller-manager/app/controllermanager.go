@@ -60,6 +60,7 @@ import (
 	servicecontroller "k8s.io/kubernetes/pkg/controller/service"
 	serviceaccountcontroller "k8s.io/kubernetes/pkg/controller/serviceaccount"
 	"k8s.io/kubernetes/pkg/controller/volume/attachdetach"
+	"k8s.io/kubernetes/pkg/controller/volume/expand"
 	persistentvolumecontroller "k8s.io/kubernetes/pkg/controller/volume/persistentvolume"
 	"k8s.io/kubernetes/pkg/features"
 	"k8s.io/kubernetes/pkg/serviceaccount"
@@ -588,6 +589,19 @@ func StartControllers(controllers map[string]InitFunc, s *options.CMServer, root
 	} else {
 		glog.Warningf("%q is disabled", attachDetachControllerName)
 	}
+
+	expandController, expandControllerErr := expand.NewExpandController(
+		clientBuilder.ClientOrDie("expand"),
+		sharedInformers.Core().V1().PersistentVolumeClaims(),
+		sharedInformers.Core().V1().PersistentVolumes(),
+		cloud,
+		ProbeAttachableVolumePlugins(s.VolumeConfiguration))
+
+	if expandControllerErr != nil {
+		return fmt.Errorf("Failed to start volume expand controller : %v", expandControllerErr)
+	}
+	go expandController.Run(stop)
+	time.Sleep(wait.Jitter(s.ControllerStartInterval.Duration, ControllerStartJitter))
 
 	sharedInformers.Start(stop)
 

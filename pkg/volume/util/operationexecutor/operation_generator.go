@@ -702,7 +702,25 @@ func (og *operationGenerator) verifyVolumeIsSafeToDetach(
 }
 
 func (og *operationGenerator) GenerateExpandVolumeFunc(pvcWithResizeRequest *expandcache.PvcWithResizeRequest) (func() error, error) {
-	expandFunc := func() {
+	volumePlugin, err := og.volumePluginMgr.FindExpandablePluginBySpec(pvcWithResizeRequest.VolumeSpec)
+
+	if err != nil {
+		return nil, fmt.Errorf("Error finding plugin for expanding volume: %q with error %v", pvcWithResizeRequest.UniquePvcKey(), err)
+	}
+
+	expanderPlugin, err := volumePlugin.NewExpander()
+
+	if err != nil {
+		return nil, fmt.Errorf("Error creating expander plugin for volume %q with error %v", pvcWithResizeRequest.UniquePvcKey(), err)
+	}
+
+	expandFunc := func() error {
+		expandErr := expanderPlugin.ExpandVolumeDevice(pvcWithResizeRequest.VolumeSpec, pvcWithResizeRequest.ExpectedSize, pvcWithResizeRequest.CurrentSize)
+
+		if expandErr != nil {
+			return expandErr
+		}
+
 		return nil
 	}
 	return expandFunc, nil

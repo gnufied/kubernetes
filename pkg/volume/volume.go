@@ -195,7 +195,7 @@ type BulkVolumeVerifier interface {
 
 type Expander interface {
 	// ExpandVolume expands the volume
-	ExpandVolumeDevice(pv *v1.PersistentVolume, newSize resource.Quantity, oldSize resource.Quantity) error
+	ExpandVolumeDevice(spec *Spec, newSize resource.Quantity, oldSize resource.Quantity) error
 }
 
 // Detacher can detach a volume from a node.

@@ -19,7 +19,6 @@ package aws_ebs
 import (
 	"github.com/golang/glog"
 	"k8s.io/apimachinery/pkg/api/resource"
-	"k8s.io/kubernetes/pkg/api/v1"
 	"k8s.io/kubernetes/pkg/cloudprovider/providers/aws"
 	"k8s.io/kubernetes/pkg/volume"
 )
@@ -45,9 +44,9 @@ func (plugin *awsElasticBlockStorePlugin) NewExpander() (volume.Expander, error)
 }
 
 func (expander *awsElasticBlockStoreExpander) ExpandVolumeDevice(
-	pv *v1.PersistentVolume,
+	spec *volume.Spec,
 	newSize resource.Quantity,
 	oldSize resource.Quantity) error {
-	glog.Infof("Hello World")
+	glog.Infof("********** Resizing the volume **********")
 	return nil
 }
