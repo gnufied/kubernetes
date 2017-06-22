@@ -59,7 +59,7 @@ func (rc *reconciler) reconcile() {
 			glog.V(10).Infof("Operation for PVC %v is already pending", pvcWithResizeRequest.UniquePvcKey())
 			continue
 		}
-		growFuncError := rc.opsExecutor.GrowPvc(pvcWithResizeRequest)
+		growFuncError := rc.opsExecutor.GrowPvc(pvcWithResizeRequest, rc.desiredStateOfWorld)
 		if growFuncError != nil {
 			glog.Errorf("Error growing pvc with %v", growFuncError)
 		}

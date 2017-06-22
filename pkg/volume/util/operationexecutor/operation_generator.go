@@ -99,7 +99,7 @@ type OperationGenerator interface {
 		string,
 		map[*volume.Spec]v1.UniqueVolumeName, ActualStateOfWorldAttacherUpdater) (func() error, error)
 
-	GenerateExpandVolumeFunc(pvcWithResizeRequest *expandcache.PvcWithResizeRequest) (func() error, error)
+	GenerateExpandVolumeFunc(*expandcache.PvcWithResizeRequest, expandcache.DesiredStateOfWorld) (func() error, error)
 }
 
 func (og *operationGenerator) GenerateVolumesAreAttachedFunc(
@@ -701,7 +701,10 @@ func (og *operationGenerator) verifyVolumeIsSafeToDetach(
 	return nil
 }
 
-func (og *operationGenerator) GenerateExpandVolumeFunc(pvcWithResizeRequest *expandcache.PvcWithResizeRequest) (func() error, error) {
+func (og *operationGenerator) GenerateExpandVolumeFunc(
+	pvcWithResizeRequest *expandcache.PvcWithResizeRequest,
+	dsow expandcache.DesiredStateOfWorld) (func() error, error) {
+
 	volumePlugin, err := og.volumePluginMgr.FindExpandablePluginBySpec(pvcWithResizeRequest.VolumeSpec)
 
 	if err != nil {
@@ -718,8 +721,10 @@ func (og *operationGenerator) GenerateExpandVolumeFunc(pvcWithResizeRequest *exp
 		expandErr := expanderPlugin.ExpandVolumeDevice(pvcWithResizeRequest.VolumeSpec, pvcWithResizeRequest.ExpectedSize, pvcWithResizeRequest.CurrentSize)
 
 		if expandErr != nil {
+			glog.Errorf("Error expanding volume through cloudprovider : %v", expandErr)
 			return expandErr
 		}
+		dsow.MarkAsResized(pvcWithResizeRequest)
 
 		return nil
 	}

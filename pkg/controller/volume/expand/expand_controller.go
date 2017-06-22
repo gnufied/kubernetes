@@ -158,18 +158,15 @@ func (expc *expandController) Run(stopCh <-chan struct{}) {
 }
 
 func (expc *expandController) pvcUpdate(oldObj, newObj interface{}) {
-	glog.Infof("********** Received a pvc update")
 	oldPvc, ok := oldObj.(*v1.PersistentVolumeClaim)
 
 	if oldPvc == nil || !ok {
-		glog.Infof("********** failed to convert update object to pvc")
 		return
 	}
 
 	newPvc, ok := newObj.(*v1.PersistentVolumeClaim)
 
 	if newPvc == nil || !ok {
-		glog.Infof("********** Failed to convert new pvc object")
 		return
 	}
 	volumeSpec, err := CreateVolumeSpec(newPvc, expc.pvcLister, expc.pvLister)
