@@ -48,12 +48,14 @@ func (pvcr *PvcWithResizeRequest) UniquePvcKey() types.UniquePvcName {
 
 func NewDesiredStateOfWorld() DesiredStateOfWorld {
 	dsow := &desiredStateOfWorld{}
+	dsow.pvcrs = make(map[types.UniquePvcName]*PvcWithResizeRequest)
 	return dsow
 }
 
 func (dsow *desiredStateOfWorld) AddPvcUpdate(newPvc *v1.PersistentVolumeClaim, oldPvc *v1.PersistentVolumeClaim, spec *volume.Spec) {
 	newSize := newPvc.Spec.Resources.Requests[v1.ResourceStorage]
-	oldSize := newPvc.Spec.Resources.Requests[v1.ResourceStorage]
+	oldSize := oldPvc.Spec.Resources.Requests[v1.ResourceStorage]
+	glog.Infof("hekumar - Checking size of stuff new %v vs old %v", newSize, oldSize)
 
 	if newSize.Cmp(oldSize) > 0 {
 		glog.Infof("hekumar -- pvc to desired state of world")
