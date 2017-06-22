@@ -42,7 +42,6 @@ import (
 	"github.com/golang/glog"
 	"github.com/prometheus/client_golang/prometheus"
 
-	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -346,7 +345,7 @@ type Volumes interface {
 	DisksAreAttached(map[types.NodeName][]KubernetesVolumeID) (map[types.NodeName]map[KubernetesVolumeID]bool, error)
 
 	// Expand Disk
-	ExpandDisk(diskName KubernetesVolumeID, newSize resource.Quantity)
+	ExpandDisk(diskName KubernetesVolumeID, newSizeInGb int64) (bool, error)
 }
 
 // InstanceGroups is an interface for managing cloud-managed instance groups / autoscaling instance groups
@@ -1783,8 +1782,22 @@ func (c *Cloud) CreateDisk(volumeOptions *VolumeOptions) (KubernetesVolumeID, er
 	return volumeName, nil
 }
 
-func (c *Cloud) ExpandDisk(volumeName KubernetesVolumeID, newSize resource.Quantity) (bool, error) {
-	return nil, true
+func (c *Cloud) ExpandDisk(volumeName KubernetesVolumeID, newSizeInGb int64) (bool, error) {
+	awsDisk, err := newAWSDisk(c, volumeName)
+	if err != nil {
+		return false, fmt.Errorf("Error converting volume %s to aws volume id", volumeName)
+	}
+
+	request := &ec2.ModifyVolumeInput{
+		VolumeId: awsDisk.awsID.awsString(),
+		Size:     aws.Int64(newSizeInGb),
+	}
+	_, err = c.ec2.ModifyVolume(request)
+	if err != nil {
+		errorMessage := fmt.Errorf("Error expanding volume %s with error %v", volumeName, err)
+		return false, errorMessage
+	}
+	return true, nil
 }
 
 // DeleteDisk implements Volumes.DeleteDisk
