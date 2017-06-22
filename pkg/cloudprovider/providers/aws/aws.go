@@ -42,6 +42,7 @@ import (
 	"github.com/golang/glog"
 	"github.com/prometheus/client_golang/prometheus"
 
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -215,6 +216,8 @@ type EC2 interface {
 	CreateVolume(request *ec2.CreateVolumeInput) (resp *ec2.Volume, err error)
 	// Delete an EBS volume
 	DeleteVolume(*ec2.DeleteVolumeInput) (*ec2.DeleteVolumeOutput, error)
+	// Modify Volume
+	ModifyVolume(*ec2.ModifyVolumeInput) (*ec2.ModifyVolumeOutput, error)
 
 	DescribeSecurityGroups(request *ec2.DescribeSecurityGroupsInput) ([]*ec2.SecurityGroup, error)
 
@@ -341,6 +344,9 @@ type Volumes interface {
 
 	// Check if disks specified in argument map are still attached to their respective nodes.
 	DisksAreAttached(map[types.NodeName][]KubernetesVolumeID) (map[types.NodeName]map[KubernetesVolumeID]bool, error)
+
+	// Expand Disk
+	ExpandDisk(diskName KubernetesVolumeID, newSize resource.Quantity)
 }
 
 // InstanceGroups is an interface for managing cloud-managed instance groups / autoscaling instance groups
@@ -668,6 +674,14 @@ func (s *awsSdkEC2) DeleteVolume(request *ec2.DeleteVolumeInput) (*ec2.DeleteVol
 	resp, err := s.ec2.DeleteVolume(request)
 	timeTaken := time.Since(requestTime).Seconds()
 	recordAwsMetric("delete_volume", timeTaken, err)
+	return resp, err
+}
+
+func (s *awsSdkEC2) ModifyVolume(request *ec2.ModifyVolumeInput) (*ec2.ModifyVolumeOutput, error) {
+	requestTime := time.Now()
+	resp, err := s.ec2.ModifyVolume(request)
+	timeTaken := time.Since(requestTime).Seconds()
+	recordAwsMetric("modify_volume", timeTaken, err)
 	return resp, err
 }
 
@@ -1767,6 +1781,10 @@ func (c *Cloud) CreateDisk(volumeOptions *VolumeOptions) (KubernetesVolumeID, er
 	}
 
 	return volumeName, nil
+}
+
+func (c *Cloud) ExpandDisk(volumeName KubernetesVolumeID, newSize resource.Quantity) (bool, error) {
+	return nil, true
 }
 
 // DeleteDisk implements Volumes.DeleteDisk
