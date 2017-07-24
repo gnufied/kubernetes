@@ -491,6 +491,17 @@ func testVolumeClaim(name string, namespace string, spec api.PersistentVolumeCla
 	}
 }
 
+func testVolumeClaimWithStatus(
+	name, namespace string,
+	spec api.PersistentVolumeClaimSpec,
+	status api.PersistentVolumeClaimStatus) {
+	return &api.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},
+		Spec:       spec,
+		Status:     status,
+	}
+}
+
 func testVolumeClaimStorageClass(name string, namespace string, annval string, spec api.PersistentVolumeClaimSpec) *api.PersistentVolumeClaim {
 	annotations := map[string]string{
 		v1.BetaStorageClassAnnotation: annval,
@@ -8838,6 +8849,14 @@ func TestValidateLimitRange(t *testing.T) {
 			}
 		}
 	}
+
+}
+
+func TestValidatePersistentVolumeClaimStatusCreate(t *testing.T) {
+
+}
+
+func TestValidatePersistentVolumeClaimStatusUpdate(t *testing.T) {
 
 }
 

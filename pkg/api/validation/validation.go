@@ -1525,6 +1525,10 @@ func ValidatePersistentVolumeClaimStatusUpdate(newPvc, oldPvc *api.PersistentVol
 	return allErrs
 }
 
+func ValidatePersistentVolumeClaimStatus(pvc *api.PersistentVolumeClaim) field.ErrorList {
+
+}
+
 var supportedPortProtocols = sets.NewString(string(api.ProtocolTCP), string(api.ProtocolUDP))
 
 func validateContainerPorts(ports []api.ContainerPort, fldPath *field.Path) field.ErrorList {
