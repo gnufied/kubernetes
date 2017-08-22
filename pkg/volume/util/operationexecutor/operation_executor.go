@@ -93,7 +93,7 @@ type OperationExecutor interface {
 	// The parameter "isRemount" is informational and used to adjust logging
 	// verbosity. An initial mount is more log-worthy than a remount, for
 	// example.
-	MountVolume(waitForAttachTimeout time.Duration, volumeToMount VolumeToMount, actualStateOfWorld ActualStateOfWorldMounterUpdater, isRemount bool) error
+	MountVolume(waitForAttachTimeout time.Duration, volumeToMount VolumeToMount, actualStateOfWorld ActualStateOfWorldMounterUpdater, isRemount bool, mounter mount.Interface) error
 
 	// UnmountVolume unmounts the volume from the pod specified in
 	// volumeToUnmount and updates the actual state of the world to reflect that.
@@ -120,7 +120,7 @@ type OperationExecutor interface {
 	// otherwise it returns false
 	IsOperationPending(volumeName v1.UniqueVolumeName, podName volumetypes.UniquePodName) bool
 	// Grow PVC will grow size available to PVC
-	GrowPvc(*expandcache.PvcWithResizeRequest, expandcache.VolumeResizeMap) error
+	ExpandVolume(*expandcache.PvcWithResizeRequest, expandcache.VolumeResizeMap) error
 }
 
 // NewOperationExecutor returns a new instance of OperationExecutor.
@@ -286,6 +286,11 @@ type VolumeToMount struct {
 	// that should be mounted. Used to create NewMounter. Used to generate
 	// InnerVolumeSpecName.
 	VolumeSpec *volume.Spec
+
+	// PVC the pod uses to reference the volume. nil for non-PVC volumes. Used
+	// as the mechanism for filesystem resize: if pvc.status.capacity is less
+	// than pv.spec.capacity, mount procedure will entail filesystem resize.
+	PVC *v1.PersistentVolumeClaim
 
 	// outerVolumeSpecName is the podSpec.Volume[x].Name of the volume. If the
 	// volume was referenced through a persistent volume claim, this contains
@@ -659,9 +664,10 @@ func (oe *operationExecutor) MountVolume(
 	waitForAttachTimeout time.Duration,
 	volumeToMount VolumeToMount,
 	actualStateOfWorld ActualStateOfWorldMounterUpdater,
-	isRemount bool) error {
+	isRemount bool,
+	mounter mount.Interface) error {
 	mountFunc, err := oe.operationGenerator.GenerateMountVolumeFunc(
-		waitForAttachTimeout, volumeToMount, actualStateOfWorld, isRemount)
+		waitForAttachTimeout, volumeToMount, actualStateOfWorld, isRemount, mounter)
 	if err != nil {
 		return err
 	}
@@ -710,7 +716,7 @@ func (oe *operationExecutor) UnmountDevice(
 		deviceToDetach.VolumeName, "" /* podName */, unmountDeviceFunc)
 }
 
-func (oe *operationExecutor) GrowPvc(pvcWithResizeRequest *expandcache.PvcWithResizeRequest, resizeMap expandcache.VolumeResizeMap) error {
+func (oe *operationExecutor) ExpandVolume(pvcWithResizeRequest *expandcache.PvcWithResizeRequest, resizeMap expandcache.VolumeResizeMap) error {
 	expandFunc, err := oe.operationGenerator.GenerateExpandVolumeFunc(pvcWithResizeRequest, resizeMap)
 
 	if err != nil {

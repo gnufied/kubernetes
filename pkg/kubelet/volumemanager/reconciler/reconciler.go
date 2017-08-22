@@ -244,7 +244,8 @@ func (rc *reconciler) reconcile() {
 				rc.waitForAttachTimeout,
 				volumeToMount.VolumeToMount,
 				rc.actualStateOfWorld,
-				isRemount)
+				isRemount,
+				rc.mounter)
 			if err != nil &&
 				!nestedpendingoperations.IsAlreadyExists(err) &&
 				!exponentialbackoff.IsExponentialBackoff(err) {
@@ -535,6 +536,7 @@ func (rc *reconciler) updateStates(volumesNeedUpdate map[v1.UniqueVolumeName]*re
 		_, err = rc.desiredStateOfWorld.AddPodToVolume(volume.podName,
 			volume.pod,
 			volume.volumeSpec,
+			nil, // pvc
 			volume.outerVolumeSpecName,
 			volume.volumeGidValue)
 		if err != nil {
