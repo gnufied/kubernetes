@@ -119,6 +119,7 @@ func NewExpandController(
 
 	pvcInformer.Informer().AddEventHandler(kcache.ResourceEventHandlerFuncs{
 		UpdateFunc: expc.pvcUpdate,
+		DeleteFunc: expc.deletePVC,
 	})
 
 	expc.syncResize = NewSyncVolumeResize(syncLoopPeriod, expc.opExecutor, expc.resizeMap)
@@ -139,6 +140,16 @@ func (expc *expandController) Run(stopCh <-chan struct{}) {
 	expc.syncResize.Run(stopCh)
 
 	<-stopCh
+}
+
+func (expc *expandController) deletePVC(obj interface{}) {
+	pvc, ok := obj.(*v1.PersistentVolumeClaim)
+
+	if pvc == nil || !ok {
+		return
+	}
+
+	expc.resizeMap.DeletePVC(pvc)
 }
 
 func (expc *expandController) pvcUpdate(oldObj, newObj interface{}) {
@@ -170,7 +181,7 @@ func createVolumeSpec(
 	pv, err := pvLister.Get(volumeName)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to find PV %q in PV informer cache : %v", volumeName, err)
+		return nil, fmt.Errorf("failed to find PV %q in PV informer cache with error : %v", volumeName, err)
 	}
 
 	clonedPvObject, err := scheme.Scheme.DeepCopy(pv)

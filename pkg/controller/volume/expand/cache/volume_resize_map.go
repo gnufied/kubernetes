@@ -34,6 +34,7 @@ import (
 // VolumeResizeMap defines an interface that serves as a cache for holding pending resizing requests
 type VolumeResizeMap interface {
 	AddPVCUpdate(newPvc *v1.PersistentVolumeClaim, oldPvc *v1.PersistentVolumeClaim, spec *volume.Spec)
+	DeletePVC(pvc *v1.PersistentVolumeClaim)
 	GetPVCsWithResizeRequest() []*PvcWithResizeRequest
 	// Mark this volume as resize
 	MarkAsResized(*PvcWithResizeRequest) error
@@ -113,6 +114,16 @@ func (resizeMap *volumeResizeMap) GetPVCsWithResizeRequest() []*PvcWithResizeReq
 	// Empty out pvcrs map, we will add back failed resize requests later
 	resizeMap.pvcrs = map[types.UniquePvcName]*PvcWithResizeRequest{}
 	return pvcrs
+}
+
+// DeletePVC removes given pvc object from list of pvcs that needs resizing.
+// deleting a pvc in this map doesn't affect operations that are already inflight.
+func (resizeMap *volumeResizeMap) DeletePVC(pvc *v1.PersistentVolumeClaim) {
+	resizeMap.Lock()
+	defer resizeMap.Unlock()
+	pvcUniqueName := types.UniquePvcName(pvc.UID)
+	glog.V(5).Infof("Removing PVC %v from resize map", pvcUniqueName)
+	delete(resizeMap.pvcrs, pvcUniqueName)
 }
 
 func (resizeMap *volumeResizeMap) MarkAsResized(pvcr *PvcWithResizeRequest) error {
