@@ -23,6 +23,7 @@ import (
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/kubernetes/pkg/controller/volume/expand/cache"
+	"k8s.io/kubernetes/pkg/util/goroutinemap/exponentialbackoff"
 	"k8s.io/kubernetes/pkg/volume/util/operationexecutor"
 )
 
@@ -58,12 +59,16 @@ func (rc *syncResize) Sync() {
 	for _, pvcWithResizeRequest := range rc.resizeMap.GetPVCsWithResizeRequest() {
 		uniqueVolumeKey := v1.UniqueVolumeName(pvcWithResizeRequest.UniquePvcKey())
 		if rc.opsExecutor.IsOperationPending(uniqueVolumeKey, "") {
-			glog.V(10).Infof("Operation for PVC %v is already pending", pvcWithResizeRequest.UniquePvcKey())
+			glog.V(10).Infof("Operation for PVC %v is already pending", pvcWithResizeRequest.QualifiedName())
 			continue
 		}
+		glog.V(5).Infof("Starting opsExecutor.ExpandVolume for volume %s", pvcWithResizeRequest.QualifiedName())
 		growFuncError := rc.opsExecutor.ExpandVolume(pvcWithResizeRequest, rc.resizeMap)
-		if growFuncError != nil {
-			glog.Errorf("Error growing pvc with %v", growFuncError)
+		if growFuncError != nil && !exponentialbackoff.IsExponentialBackoff(growFuncError) {
+			glog.Errorf("Error growing pvc %s with %v", pvcWithResizeRequest.QualifiedName(), growFuncError)
+		}
+		if growFuncError == nil {
+			glog.V(5).Infof("Started opsExecutor.ExpandVolume for volume %s", pvcWithResizeRequest.QualifiedName())
 		}
 	}
 }
