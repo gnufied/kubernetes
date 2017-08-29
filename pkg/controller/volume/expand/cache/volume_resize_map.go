@@ -33,7 +33,11 @@ import (
 
 // VolumeResizeMap defines an interface that serves as a cache for holding pending resizing requests
 type VolumeResizeMap interface {
-	AddPVCUpdate(newPvc *v1.PersistentVolumeClaim, oldPvc *v1.PersistentVolumeClaim, spec *volume.Spec)
+	AddPVCUpdate(newPvc *v1.PersistentVolumeClaim, pv *v1.PersistentVolume)
+	// VerifyAndSoftAddPVC adds PVC for resizing only if there is no
+	// resize request pending and if PV size doesn't satisfy pvc size
+	VerifyAndSoftAddPVC(newPvc *v1.PersistentVolumeClaim, pv *v1.PersistentVolume)
+
 	DeletePVC(pvc *v1.PersistentVolumeClaim)
 	GetPVCsWithResizeRequest() []*PvcWithResizeRequest
 	// Mark this volume as resize
@@ -83,22 +87,49 @@ func NewVolumeResizeMap(kubeClient clientset.Interface) VolumeResizeMap {
 	return resizeMap
 }
 
-func (resizeMap *volumeResizeMap) AddPVCUpdate(newPvc *v1.PersistentVolumeClaim, oldPvc *v1.PersistentVolumeClaim, spec *volume.Spec) {
+func (resizeMap *volumeResizeMap) AddPVCUpdate(newPvc *v1.PersistentVolumeClaim, pv *v1.PersistentVolume) {
 	resizeMap.Lock()
 	defer resizeMap.Unlock()
 
 	newSize := newPvc.Spec.Resources.Requests[v1.ResourceStorage]
-	oldSize := oldPvc.Spec.Resources.Requests[v1.ResourceStorage]
-	glog.Infof(" Checking size of stuff new %v vs old %v", newSize, oldSize)
+	currentSize := newPvc.Status.Capacity[v1.ResourceStorage]
+	glog.Infof(" Checking size of stuff new %v vs old %v", newSize, currentSize)
 
-	if newSize.Cmp(oldSize) > 0 {
+	if newSize.Cmp(currentSize) > 0 {
 		pvcRequest := &PvcWithResizeRequest{
 			PVC:          newPvc,
-			CurrentSize:  newPvc.Status.Capacity[v1.ResourceStorage],
+			CurrentSize:  currentSize,
 			ExpectedSize: newSize,
-			VolumeSpec:   spec,
+			VolumeSpec:   volume.NewSpecFromPersistentVolume(pv, false),
 		}
 		resizeMap.pvcrs[types.UniquePvcName(newPvc.UID)] = pvcRequest
+	}
+}
+
+// VerifyAndSoftAddPVC adds PVC for resizing only if there is no
+// resize request pending and if PV size doesn't satisfy pvc size
+func (resizeMap *volumeResizeMap) VerifyAndSoftAddPVC(pvc *v1.PersistentVolumeClaim, pv *v1.PersistentVolume) {
+	resizeMap.Lock()
+	defer resizeMap.Unlock()
+
+	pvcUniqueName := types.UniquePvcName(pvc.UID)
+
+	if _, ok := resizeMap.pvcrs[pvcUniqueName]; !ok {
+		pvcSize := pvc.Spec.Resources.Requests[v1.ResourceStorage]
+		pvSize := pv.Spec.Capacity[v1.ResourceStorage]
+		// If PV size is less than pvc size. The reason here we compare with pv size
+		// rather than pvc.Status.Size is because if a resize is already in progress
+		// then pv size would reflect new value and if pv size is more than pvc
+		// size then no resize will be necessary.
+		if pvSize.Cmp(pvcSize) < 0 {
+			pvcRequest := &PvcWithResizeRequest{
+				PVC:          pvc,
+				CurrentSize:  pvc.Status.Capacity[v1.ResourceStorage],
+				ExpectedSize: pvcSize,
+				VolumeSpec:   volume.NewSpecFromPersistentVolume(pv, false),
+			}
+			resizeMap.pvcrs[pvcUniqueName] = pvcRequest
+		}
 	}
 }
 
@@ -272,7 +303,23 @@ func (resizeMap *volumeResizeMap) addBackResizeRequest(pvcr *PvcWithResizeReques
 		glog.V(5).Infof("Found another resize request pending for volume %s", pvcr.QualifiedName())
 		return
 	}
-	resizeMap.pvcrs[pvcUniqueName] = pvcr
+	pvc, err := resizeMap.kubeClient.CoreV1().PersistentVolumeClaims(pvcr.PVC.Namespace).Get(pvcr.PVC.Name, metav1.GetOptions{})
+	if err != nil {
+		glog.Errorf("Error fetching pvc %v/%v for resize with error : %v", pvc.Namespace, pvc.Name, err)
+		return
+	}
+	pv, pvfetchErr := resizeMap.kubeClient.CoreV1().PersistentVolumes().Get(pvc.Spec.VolumeName, metav1.GetOptions{})
+	if pvfetchErr != nil {
+		glog.Errorf("Error fetching pv %v for resize with error : %v", pvc.Spec.VolumeName, err)
+		return
+	}
+	newSize := pvc.Spec.Resources.Requests[v1.ResourceStorage]
+	resizeMap.pvcrs[pvcUniqueName] = &PvcWithResizeRequest{
+		PVC:          pvc,
+		CurrentSize:  pvc.Status.Capacity[v1.ResourceStorage],
+		ExpectedSize: newSize,
+		VolumeSpec:   volume.NewSpecFromPersistentVolume(pv, false),
+	}
 }
 
 func clonePVC(oldPvc *v1.PersistentVolumeClaim) (*v1.PersistentVolumeClaim, error) {

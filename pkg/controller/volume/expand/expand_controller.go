@@ -164,24 +164,24 @@ func (expc *expandController) pvcUpdate(oldObj, newObj interface{}) {
 	if newPvc == nil || !ok {
 		return
 	}
-	volumeSpec, err := createVolumeSpec(newPvc, expc.pvcLister, expc.pvLister)
+	pv, err := getPersistentVolume(newPvc, expc.pvLister)
 	if err != nil {
-		glog.Errorf("Error creating volume spec during update event : %v", err)
+		glog.V(5).Infof("Error getting Persistent Volume for pvc %q : %v", newPvc.UID, err)
 		return
 	}
-	expc.resizeMap.AddPVCUpdate(newPvc, oldPvc, volumeSpec)
+	expc.resizeMap.AddPVCUpdate(newPvc, pv)
 }
 
-func createVolumeSpec(
-	pvc *v1.PersistentVolumeClaim,
-	pvcLister corelisters.PersistentVolumeClaimLister,
-	pvLister corelisters.PersistentVolumeLister) (*volume.Spec, error) {
-
+func getPersistentVolume(pvc *v1.PersistentVolumeClaim, pvLister corelisters.PersistentVolumeLister) (*v1.PersistentVolume, error) {
 	volumeName := pvc.Spec.VolumeName
 	pv, err := pvLister.Get(volumeName)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to find PV %q in PV informer cache with error : %v", volumeName, err)
+	}
+
+	if pvc.Namespace != pv.Spec.ClaimRef.Namespace || pvc.Name != pv.Spec.ClaimRef.Name {
+		return nil, fmt.Errorf("Persistent Volume is not mapped to PVC being updated : %v/%v", pvc.Namespace, pvc.Name)
 	}
 
 	clonedPvObject, err := scheme.Scheme.DeepCopy(pv)
@@ -193,7 +193,7 @@ func createVolumeSpec(
 	if !ok {
 		return nil, fmt.Errorf("failed to cast %q clonedPV %#v to PersistentVolume", volumeName, pv)
 	}
-	return volume.NewSpecFromPersistentVolume(clonedPV, false), nil
+	return clonedPV, nil
 }
 
 // Implementing VolumeHost interface
