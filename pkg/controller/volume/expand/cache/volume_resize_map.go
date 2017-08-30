@@ -28,7 +28,6 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/kubernetes/pkg/controller/volume/expand/util"
 	"k8s.io/kubernetes/pkg/util/strings"
-	"k8s.io/kubernetes/pkg/volume"
 	"k8s.io/kubernetes/pkg/volume/util/types"
 )
 
@@ -61,8 +60,8 @@ type volumeResizeMap struct {
 type PvcWithResizeRequest struct {
 	// PVC that needs to be resized
 	PVC *v1.PersistentVolumeClaim
-	// Volume spec object that can be used from volume plugins
-	VolumeSpec *volume.Spec
+	// persistentvolume
+	PersistentVolume *v1.PersistentVolume
 	// Current volume size
 	CurrentSize resource.Quantity
 	// Expended volume size
@@ -102,10 +101,10 @@ func (resizeMap *volumeResizeMap) AddPVCUpdate(newPvc *v1.PersistentVolumeClaim,
 
 	if newSize.Cmp(oldSize) > 0 {
 		pvcRequest := &PvcWithResizeRequest{
-			PVC:          newPvc,
-			CurrentSize:  newPvc.Status.Capacity[v1.ResourceStorage],
-			ExpectedSize: newSize,
-			VolumeSpec:   volume.NewSpecFromPersistentVolume(pv, false),
+			PVC:              newPvc,
+			CurrentSize:      newPvc.Status.Capacity[v1.ResourceStorage],
+			ExpectedSize:     newSize,
+			PersistentVolume: pv,
 		}
 		resizeMap.pvcrs[types.UniquePvcName(newPvc.UID)] = pvcRequest
 	}
@@ -133,10 +132,10 @@ func (resizeMap *volumeResizeMap) VerifyAndSoftAddPVC(pvc *v1.PersistentVolumeCl
 		// size then no resize will be necessary.
 		if pvSize.Cmp(pvcSize) < 0 {
 			pvcRequest := &PvcWithResizeRequest{
-				PVC:          pvc,
-				CurrentSize:  pvc.Status.Capacity[v1.ResourceStorage],
-				ExpectedSize: pvcSize,
-				VolumeSpec:   volume.NewSpecFromPersistentVolume(pv, false),
+				PVC:              pvc,
+				CurrentSize:      pvc.Status.Capacity[v1.ResourceStorage],
+				ExpectedSize:     pvcSize,
+				PersistentVolume: pv,
 			}
 			resizeMap.pvcrs[pvcUniqueName] = pvcRequest
 		}
@@ -222,7 +221,7 @@ func (resizeMap *volumeResizeMap) MarkForFileSystemResize(pvcr *PvcWithResizeReq
 }
 
 func (resizeMap *volumeResizeMap) updatePvSize(pvcr *PvcWithResizeRequest, newSize resource.Quantity) error {
-	oldPv := pvcr.VolumeSpec.PersistentVolume
+	oldPv := pvcr.PersistentVolume
 	clone, err := scheme.Scheme.DeepCopy(oldPv)
 
 	if err != nil {
@@ -295,9 +294,9 @@ func (resizeMap *volumeResizeMap) addBackResizeRequest(pvcr *PvcWithResizeReques
 	}
 	newSize := pvc.Spec.Resources.Requests[v1.ResourceStorage]
 	resizeMap.pvcrs[pvcUniqueName] = &PvcWithResizeRequest{
-		PVC:          pvc,
-		CurrentSize:  pvc.Status.Capacity[v1.ResourceStorage],
-		ExpectedSize: newSize,
-		VolumeSpec:   volume.NewSpecFromPersistentVolume(pv, false),
+		PVC:              pvc,
+		CurrentSize:      pvc.Status.Capacity[v1.ResourceStorage],
+		ExpectedSize:     newSize,
+		PersistentVolume: pv,
 	}
 }

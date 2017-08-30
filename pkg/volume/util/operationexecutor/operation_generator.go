@@ -733,7 +733,9 @@ func (og *operationGenerator) GenerateExpandVolumeFunc(
 	pvcWithResizeRequest *expandcache.PvcWithResizeRequest,
 	resizeMap expandcache.VolumeResizeMap) (func() error, string, error) {
 
-	volumePlugin, err := og.volumePluginMgr.FindExpandablePluginBySpec(pvcWithResizeRequest.VolumeSpec)
+	volumeSpec := volume.NewSpecFromPersistentVolume(pvcWithResizeRequest.PersistentVolume, false)
+
+	volumePlugin, err := og.volumePluginMgr.FindExpandablePluginBySpec(volumeSpec)
 
 	if err != nil {
 		return nil, "", fmt.Errorf("Error finding plugin for expanding volume: %q with error %v", pvcWithResizeRequest.QualifiedName(), err)
@@ -741,7 +743,7 @@ func (og *operationGenerator) GenerateExpandVolumeFunc(
 
 	expandFunc := func() error {
 		newSize, expandErr := volumePlugin.ExpandVolumeDevice(
-			pvcWithResizeRequest.VolumeSpec,
+			volumeSpec,
 			pvcWithResizeRequest.ExpectedSize,
 			pvcWithResizeRequest.CurrentSize)
 
