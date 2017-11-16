@@ -84,6 +84,7 @@ import (
 	extensionsinternal "k8s.io/kubernetes/pkg/apis/extensions"
 	"k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
 	"k8s.io/kubernetes/pkg/client/conditions"
+	awscloud "k8s.io/kubernetes/pkg/cloudprovider/providers/aws"
 	"k8s.io/kubernetes/pkg/cloudprovider/providers/azure"
 	gcecloud "k8s.io/kubernetes/pkg/cloudprovider/providers/gce"
 	"k8s.io/kubernetes/pkg/controller"
@@ -4316,6 +4317,15 @@ func GetGCECloud() (*gcecloud.GCECloud, error) {
 		return nil, fmt.Errorf("failed to convert CloudConfig.Provider to GCECloud: %#v", TestContext.CloudConfig.Provider)
 	}
 	return gceCloud, nil
+}
+
+func GetAWSCloud() (*awscloud.Cloud, error) {
+	awsCloud, ok := TestContext.CloudConfig.Provider.(*awscloud.Cloud)
+
+	if !ok {
+		return nil, fmt.Errorf("Failed to convert CloudConfig.Provider to aws.Cloud: %#v", TestContext.CloudConfig.Provider)
+	}
+	return awsCloud, nil
 }
 
 // EnsureLoadBalancerResourcesDeleted ensures that cloud load balancer resources that were created

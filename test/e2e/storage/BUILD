@@ -8,6 +8,7 @@ load(
 go_library(
     name = "go_default_library",
     srcs = [
+        "aws_node_down.go",
         "empty_dir_wrapper.go",
         "flexvolume.go",
         "framework.go",
@@ -44,6 +45,7 @@ go_library(
         "//pkg/api/testapi:go_default_library",
         "//pkg/apis/core/v1/helper:go_default_library",
         "//pkg/apis/storage/v1/util:go_default_library",
+        "//pkg/cloudprovider/providers/aws:go_default_library",
         "//pkg/cloudprovider/providers/vsphere:go_default_library",
         "//pkg/cloudprovider/providers/vsphere/vclib:go_default_library",
         "//pkg/kubelet/apis:go_default_library",
