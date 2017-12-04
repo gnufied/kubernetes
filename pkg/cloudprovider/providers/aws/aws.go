@@ -1775,63 +1775,9 @@ func (c *Cloud) applyUnSchedulableTaint(nodeName types.NodeName, reason string) 
 // waitForAttachmentStatus polls until the attachment status is the expected value
 // On success, it returns the last attachment state.
 func (d *awsDisk) waitForAttachmentStatus(status string) (*ec2.VolumeAttachment, error) {
-	backoff := wait.Backoff{
-		Duration: volumeAttachmentStatusInitialDelay,
-		Factor:   volumeAttachmentStatusFactor,
-		Steps:    volumeAttachmentStatusSteps,
-	}
-
-	// Because of rate limiting, we often see errors from describeVolume
-	// So we tolerate a limited number of failures.
-	// But once we see more than 10 errors in a row, we return the error
-	describeErrorCount := 0
 	var attachment *ec2.VolumeAttachment
 
-	err := wait.ExponentialBackoff(backoff, func() (bool, error) {
-		info, err := d.describeVolume()
-		if err != nil {
-			describeErrorCount++
-			if describeErrorCount > volumeAttachmentStatusConsecutiveErrorLimit {
-				// report the error
-				return false, err
-			} else {
-				glog.Warningf("Ignoring error from describe volume; will retry: %q", err)
-				return false, nil
-			}
-		} else {
-			describeErrorCount = 0
-		}
-		if len(info.Attachments) > 1 {
-			// Shouldn't happen; log so we know if it is
-			glog.Warningf("Found multiple attachments for volume %q: %v", d.awsID, info)
-		}
-		attachmentStatus := ""
-		for _, a := range info.Attachments {
-			if attachmentStatus != "" {
-				// Shouldn't happen; log so we know if it is
-				glog.Warningf("Found multiple attachments for volume %q: %v", d.awsID, info)
-			}
-			if a.State != nil {
-				attachment = a
-				attachmentStatus = *a.State
-			} else {
-				// Shouldn't happen; log so we know if it is
-				glog.Warningf("Ignoring nil attachment state for volume %q: %v", d.awsID, a)
-			}
-		}
-		if attachmentStatus == "" {
-			attachmentStatus = "detached"
-		}
-		if attachmentStatus == status {
-			// Attachment is in requested state, finish waiting
-			return true, nil
-		}
-		// continue waiting
-		glog.V(2).Infof("Waiting for volume %q state: actual=%s, desired=%s", d.awsID, attachmentStatus, status)
-		return false, nil
-	})
-
-	return attachment, err
+	return attachment, wait.ErrWaitTimeout
 }
 
 // Deletes the EBS disk
