@@ -425,8 +425,7 @@ func ClusterRoles() []rbac.ClusterRole {
 		{
 			ObjectMeta: metav1.ObjectMeta{Name: "system:aws-cloud-provider"},
 			Rules: []rbac.PolicyRule{
-				rbac.NewRule("get", "list", "watch").Groups(legacyGroup).Resources("nodes").RuleOrDie(),
-				rbac.NewRule("patch", "update").Groups(legacyGroup).Resources("nodes").RuleOrDie(),
+				rbac.NewRule("get", "patch").Groups(legacyGroup).Resources("nodes").RuleOrDie(),
 				eventsRule(),
 			},
 		},
