@@ -423,7 +423,7 @@ func ClusterRoles() []rbac.ClusterRole {
 			},
 		},
 		{
-			ObjectMeta: metav1.ObjectMeta{Name: "system:cloud-provider"},
+			ObjectMeta: metav1.ObjectMeta{Name: "system:aws-cloud-provider"},
 			Rules: []rbac.PolicyRule{
 				rbac.NewRule("get", "list", "watch").Groups(legacyGroup).Resources("nodes").RuleOrDie(),
 				rbac.NewRule("patch", "update").Groups(legacyGroup).Resources("nodes").RuleOrDie(),
@@ -484,7 +484,7 @@ func ClusterRoleBindings() []rbac.ClusterRoleBinding {
 		rbac.NewClusterBinding("system:kube-controller-manager").Users(user.KubeControllerManager).BindingOrDie(),
 		rbac.NewClusterBinding("system:kube-dns").SAs("kube-system", "kube-dns").BindingOrDie(),
 		rbac.NewClusterBinding("system:kube-scheduler").Users(user.KubeScheduler).BindingOrDie(),
-		rbac.NewClusterBinding("system:cloud-provider").SAs("kube-system", "cloud-provider").BindingOrDie(),
+		rbac.NewClusterBinding("system:aws-cloud-provider").SAs("kube-system", "aws-cloud-provider").BindingOrDie(),
 
 		// This default binding of the system:node role to the system:nodes group is deprecated in 1.7 with the availability of the Node authorizer.
 		// This leaves the binding, but with an empty set of subjects, so that tightening reconciliation can remove the subject.
