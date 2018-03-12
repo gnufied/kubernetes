@@ -58,6 +58,16 @@ func (kl *Kubelet) podVolumesExist(podUID types.UID) bool {
 		return true
 	}
 
+	volumePaths, err := kl.getPodVolumePathListFromDisk(podUID)
+	if err != nil {
+		glog.Errorf("pod %q found, but error %v occurred during reading volume dir from disk", podUID, err)
+		return true
+	}
+	if len(volumePaths) > 0 {
+		glog.Errorf("pod %q found, but volume paths are still present on disk", podUID)
+		return true
+	}
+
 	return false
 }
 
