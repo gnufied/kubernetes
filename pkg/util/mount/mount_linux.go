@@ -65,6 +65,12 @@ type Mounter struct {
 	withSystemd bool
 }
 
+type fileDeviceInfo struct {
+	deviceNumber  uint64
+	iNodeNumber   uint64
+	specialDevice bool
+}
+
 // New returns a mount.Interface for the current system.
 // It provides options to override the default mounter behavior.
 // mounterPath allows using an alternative to `/bin/mount` for mounting.
@@ -790,11 +796,27 @@ func doBindSubPath(mounter Interface, subpath Subpath, kubeletPid int) (hostPath
 	}
 
 	// Safe open subpath and get the fd
-	fd, err := doSafeOpen(evalSubPath, subpath.VolumePath)
+	fd, deviceInfo, err := doSafeOpen(evalSubPath, subpath.VolumePath)
 	if err != nil {
 		return "", fmt.Errorf("error opening subpath %v: %v", evalSubPath, err)
 	}
-	defer syscall.Close(fd)
+
+	if fd != -1 {
+		defer syscall.Close(fd)
+	}
+
+	if deviceInfo.specialDevice {
+		glog.V(5).Infof("bind mounting device %q at %q", evalSubPath, bindPathTarget)
+		if err = mounter.Mount(evalSubPath, bindPathTarget, "" /*fstype*/, []string{"bind"}); err != nil {
+			return "", fmt.Errorf("error mounting %s: %s", subpath.Path, err)
+		}
+		if err = verifyBindTarget(deviceInfo, bindPathTarget); err != nil {
+			return "", fmt.Errorf("error verifying bind mount %s: %v", bindPathTarget, err)
+		}
+		success = true
+		glog.V(3).Infof("Bound SubPath %s into %s", subpath.Path, bindPathTarget)
+		return bindPathTarget, nil
+	}
 
 	mountSource := fmt.Sprintf("/proc/%d/fd/%v", kubeletPid, fd)
 
@@ -811,6 +833,27 @@ func doBindSubPath(mounter Interface, subpath Subpath, kubeletPid int) (hostPath
 
 func (mounter *Mounter) CleanSubPaths(podDir string, volumeName string) error {
 	return doCleanSubPaths(mounter, podDir, volumeName)
+}
+
+func verifyBindTarget(deviceInfo fileDeviceInfo, bindTargetPath string) error {
+	bindTargetStat, err := os.Lstat(bindTargetPath)
+	if err != nil {
+		return fmt.Errorf("Error running lstat on %s with %v", bindTargetPath, err)
+	}
+	t := bindTargetStat.Sys()
+	if t == nil {
+		return fmt.Errorf("Error getting stats on %s", bindTargetPath)
+	}
+
+	stat, ok := t.(*syscall.Stat_t)
+	if !ok {
+		return fmt.Errorf("Error getting stats on %s", bindTargetPath)
+	}
+	// If deviceNumber and iNodeNumber matches for a file then it is same file.
+	if stat.Dev == deviceInfo.deviceNumber && stat.Ino == deviceInfo.iNodeNumber {
+		return nil
+	}
+	return fmt.Errorf("mounted device on %s does not match original device", bindTargetPath)
 }
 
 // This implementation is shared between Linux and NsEnterMounter
@@ -978,7 +1021,7 @@ func doSafeMakeDir(pathname string, base string, perm os.FileMode) error {
 	}
 
 	glog.V(4).Infof("%q already exists, %q to create", fullExistingPath, filepath.Join(toCreate...))
-	parentFD, err := doSafeOpen(fullExistingPath, base)
+	parentFD, _, err := doSafeOpen(fullExistingPath, base)
 	if err != nil {
 		return fmt.Errorf("cannot open directory %s: %s", existingPath, err)
 	}
@@ -1093,11 +1136,12 @@ func findExistingPrefix(base, pathname string) (string, []string, error) {
 // Open path and return its fd.
 // Symlinks are disallowed (pathname must already resolve symlinks),
 // and the path must be within the base directory.
-func doSafeOpen(pathname string, base string) (int, error) {
+func doSafeOpen(pathname string, base string) (int, fileDeviceInfo, error) {
 	// Calculate segments to follow
 	subpath, err := filepath.Rel(base, pathname)
+	defaultDeviceInfo := fileDeviceInfo{}
 	if err != nil {
-		return -1, err
+		return -1, defaultDeviceInfo, err
 	}
 	segments := strings.Split(subpath, string(filepath.Separator))
 
@@ -1105,7 +1149,7 @@ func doSafeOpen(pathname string, base string) (int, error) {
 	// Base dir is not allowed to be a symlink.
 	parentFD, err := syscall.Open(base, nofollowFlags, 0)
 	if err != nil {
-		return -1, fmt.Errorf("cannot open directory %s: %s", base, err)
+		return -1, defaultDeviceInfo, fmt.Errorf("cannot open directory %s: %s", base, err)
 	}
 	defer func() {
 		if parentFD != -1 {
@@ -1125,24 +1169,44 @@ func doSafeOpen(pathname string, base string) (int, error) {
 	}()
 
 	currentPath := base
+	lastSegmentIndex := len(segments) - 1
 
 	// Follow the segments one by one using openat() to make
 	// sure the user cannot change already existing directories into symlinks.
-	for _, seg := range segments {
+	for i, seg := range segments {
 		currentPath = filepath.Join(currentPath, seg)
 		if !pathWithinBase(currentPath, base) {
-			return -1, fmt.Errorf("path %s is outside of allowed base %s", currentPath, base)
+			return -1, defaultDeviceInfo, fmt.Errorf("path %s is outside of allowed base %s", currentPath, base)
+		}
+		var deviceStat unix.Stat_t
+		deviceStatErr := unix.Fstatat(parentFD, seg, &deviceStat, unix.AT_SYMLINK_NOFOLLOW)
+		if deviceStatErr != nil {
+			return -1, defaultDeviceInfo, fmt.Errorf("Error getting stats for %s with %v", currentPath, deviceStatErr)
 		}
 
+		fileFmt := deviceStat.Mode & syscall.S_IFMT
+
+		// if file is FIFO or socket then we should not try and Open it.
+		// A socket will not open with open call and a FIFO may hang
+		if fileFmt == syscall.S_IFIFO || fileFmt == syscall.S_IFSOCK {
+			if i == lastSegmentIndex {
+				deviceInfo := fileDeviceInfo{
+					deviceNumber:  deviceStat.Dev,
+					iNodeNumber:   deviceStat.Ino,
+					specialDevice: true,
+				}
+				return -1, deviceInfo, nil
+			}
+			return -1, defaultDeviceInfo, fmt.Errorf("cannot open special device %s as subpath", currentPath)
+		}
 		glog.V(5).Infof("Opening path %s", currentPath)
 		childFD, err = syscall.Openat(parentFD, seg, nofollowFlags, 0)
 		if err != nil {
-			return -1, fmt.Errorf("cannot open %s: %s", currentPath, err)
+			return -1, defaultDeviceInfo, fmt.Errorf("cannot open %s: %s", currentPath, err)
 		}
-
 		// Close parentFD
 		if err = syscall.Close(parentFD); err != nil {
-			return -1, fmt.Errorf("closing fd for %q failed: %v", filepath.Dir(currentPath), err)
+			return -1, defaultDeviceInfo, fmt.Errorf("closing fd for %q failed: %v", filepath.Dir(currentPath), err)
 		}
 		// Set child to new parent
 		parentFD = childFD
@@ -1153,5 +1217,5 @@ func doSafeOpen(pathname string, base string) (int, error) {
 	finalFD := parentFD
 	parentFD = -1
 
-	return finalFD, nil
+	return finalFD, defaultDeviceInfo, nil
 }

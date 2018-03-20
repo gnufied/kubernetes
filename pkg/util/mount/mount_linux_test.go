@@ -21,6 +21,7 @@ package mount
 import (
 	"fmt"
 	"io/ioutil"
+	"net"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -1179,6 +1180,25 @@ func TestBindSubPath(t *testing.T) {
 			},
 			expectError: false,
 		},
+		{
+			name: "subpath-mounting-unix-socket",
+			prepare: func(base string) ([]string, string, string, error) {
+				volpath, subpathMount := getTestPaths(base)
+				mounts := []string{subpathMount}
+				if err := os.MkdirAll(volpath, defaultPerm); err != nil {
+					return nil, "", "", err
+				}
+
+				if err := os.MkdirAll(subpathMount, defaultPerm); err != nil {
+					return nil, "", "", err
+				}
+
+				testSocketFile := filepath.Join(volpath, "mount_test.sock")
+				_, err := net.Listen("unix", testSocketFile)
+				return mounts, volpath, testSocketFile, err
+			},
+			expectError: false,
+		},
 	}
 
 	for _, test := range tests {
@@ -1308,6 +1328,7 @@ func TestParseMountInfo(t *testing.T) {
 
 func TestSafeOpen(t *testing.T) {
 	defaultPerm := os.FileMode(0750)
+
 	tests := []struct {
 		name string
 		// Function that prepares directory structure for the test under given
@@ -1435,6 +1456,19 @@ func TestSafeOpen(t *testing.T) {
 			"test",
 			true,
 		},
+		{
+			"mounting-unix-socket",
+			func(base string) error {
+				testSocketFile := filepath.Join(base, "mount_test.sock")
+				_, err := net.Listen("unix", testSocketFile)
+				if err != nil {
+					return fmt.Errorf("Error preparing socket file %s with %v", testSocketFile, err)
+				}
+				return nil
+			},
+			"mount_test.sock",
+			false,
+		},
 	}
 
 	for _, test := range tests {
@@ -1445,7 +1479,7 @@ func TestSafeOpen(t *testing.T) {
 		}
 		test.prepare(base)
 		pathToCreate := filepath.Join(base, test.path)
-		fd, err := doSafeOpen(pathToCreate, base)
+		fd, _, err := doSafeOpen(pathToCreate, base)
 		if err != nil && !test.expectError {
 			t.Errorf("test %q: %s", test.name, err)
 		}
