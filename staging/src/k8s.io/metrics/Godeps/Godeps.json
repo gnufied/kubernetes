@@ -92,11 +92,11 @@
 		},
 		{
 			"ImportPath": "golang.org/x/sys/unix",
-			"Rev": "95c6576299259db960f6c5b9b69ea52422860fce"
+			"Rev": "7ceb54c8418b8f9cdf0177b511d5cbb06e9fae39"
 		},
 		{
 			"ImportPath": "golang.org/x/sys/windows",
-			"Rev": "95c6576299259db960f6c5b9b69ea52422860fce"
+			"Rev": "7ceb54c8418b8f9cdf0177b511d5cbb06e9fae39"
 		},
 		{
 			"ImportPath": "golang.org/x/text/secure/bidirule",
