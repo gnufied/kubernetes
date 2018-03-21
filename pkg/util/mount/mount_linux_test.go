@@ -1199,6 +1199,25 @@ func TestBindSubPath(t *testing.T) {
 			},
 			expectError: false,
 		},
+		{
+			name: "subpath-mounting-fifo",
+			prepare: func(base string) ([]string, string, string, error) {
+				volpath, subpathMount := getTestPaths(base)
+				mounts := []string{subpathMount}
+				if err := os.MkdirAll(volpath, defaultPerm); err != nil {
+					return nil, "", "", err
+				}
+
+				if err := os.MkdirAll(subpathMount, defaultPerm); err != nil {
+					return nil, "", "", err
+				}
+
+				testFifo := filepath.Join(volpath, "mount_test.fifo")
+				err := syscall.Mkfifo(testFifo, 0)
+				return mounts, volpath, testFifo, err
+			},
+			expectError: false,
+		},
 	}
 
 	for _, test := range tests {
@@ -1468,6 +1487,19 @@ func TestSafeOpen(t *testing.T) {
 			},
 			"mount_test.sock",
 			false,
+		},
+		{
+			"mounting-unix-socket-in-middle",
+			func(base string) error {
+				testSocketFile := filepath.Join(base, "mount_test.sock")
+				_, err := net.Listen("unix", testSocketFile)
+				if err != nil {
+					return fmt.Errorf("Error preparing socket file %s with %v", testSocketFile, err)
+				}
+				return nil
+			},
+			"mount_test.sock/bar",
+			true,
 		},
 	}
 
