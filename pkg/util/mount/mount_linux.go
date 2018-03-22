@@ -1116,6 +1116,18 @@ func findExistingPrefix(base, pathname string) (string, []string, error) {
 		}
 	}()
 	for i, dir := range dirs {
+		var deviceStat unix.Stat_t
+		deviceStatErr := unix.Fstatat(fd, dir, &deviceStat, 0)
+		if deviceStatErr == syscall.ENOENT {
+			return currentPath, dirs[i:], nil
+		}
+
+		fileFmt := deviceStat.Mode & syscall.S_IFMT
+
+		if fileFmt == syscall.S_IFIFO || fileFmt == syscall.S_IFSOCK {
+			return base, nil, fmt.Errorf("Unexpected socket or FIFO in path : %s", filepath.Join(currentPath, dir))
+		}
+
 		childFD, err := syscall.Openat(fd, dir, syscall.O_RDONLY, 0)
 		if err != nil {
 			if os.IsNotExist(err) {
