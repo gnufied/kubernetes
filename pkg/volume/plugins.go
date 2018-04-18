@@ -147,6 +147,9 @@ type VolumePlugin interface {
 	// of enabling bulk polling of all nodes. This can speed up verification of
 	// attached volumes by quite a bit, but underlying pluging must support it.
 	SupportsBulkVolumeVerification() bool
+
+	//Supports Volume Expansion
+	SupportsVolumeExpansion() bool
 }
 
 // PersistentVolumePlugin is an extended interface of VolumePlugin and is used
