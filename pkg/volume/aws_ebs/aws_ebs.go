@@ -93,6 +93,19 @@ func (plugin *awsElasticBlockStorePlugin) SupportsBulkVolumeVerification() bool 
 	return true
 }
 
+func (plugin *awsElasticBlockStorePlugin) GetVolumeLimits() (map[string]int64, error) {
+	cloud := plugin.host.GetCloudProvider()
+
+	if cloud.ProviderName() != aws.ProviderName {
+		return nil, fmt.Errorf("Expected aws cloud, found %s", cloud.ProviderName())
+	}
+
+	volumeLimits := map[string]int64{
+		awsElasticBlockStorePluginName: 39,
+	}
+	return volumeLimits, nil
+}
+
 func (plugin *awsElasticBlockStorePlugin) GetAccessModes() []v1.PersistentVolumeAccessMode {
 	return []v1.PersistentVolumeAccessMode{
 		v1.ReadWriteOnce,
@@ -265,6 +278,7 @@ func (plugin *awsElasticBlockStorePlugin) ExpandVolumeDevice(
 }
 
 var _ volume.ExpandableVolumePlugin = &awsElasticBlockStorePlugin{}
+var _ volume.VolumePluginWithAttachLimits = &awsElasticBlockStorePlugin{}
 
 // Abstract interface to PD operations.
 type ebsManager interface {

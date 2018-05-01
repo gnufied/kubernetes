@@ -27,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	gcecloud "k8s.io/kubernetes/pkg/cloudprovider/providers/gce"
 	"k8s.io/kubernetes/pkg/util/mount"
 	kstrings "k8s.io/kubernetes/pkg/util/strings"
 	"k8s.io/kubernetes/pkg/volume"
@@ -47,6 +48,7 @@ var _ volume.PersistentVolumePlugin = &gcePersistentDiskPlugin{}
 var _ volume.DeletableVolumePlugin = &gcePersistentDiskPlugin{}
 var _ volume.ProvisionableVolumePlugin = &gcePersistentDiskPlugin{}
 var _ volume.ExpandableVolumePlugin = &gcePersistentDiskPlugin{}
+var _ volume.VolumePluginWithAttachLimits = &gcePersistentDiskPlugin{}
 
 const (
 	gcePersistentDiskPluginName = "kubernetes.io/gce-pd"
@@ -96,6 +98,19 @@ func (plugin *gcePersistentDiskPlugin) GetAccessModes() []v1.PersistentVolumeAcc
 		v1.ReadWriteOnce,
 		v1.ReadOnlyMany,
 	}
+}
+
+func (plugin *gcePersistentDiskPlugin) GetVolumeLimits() (map[string]int64, error) {
+	cloud := plugin.host.GetCloudProvider()
+
+	if cloud.ProviderName() != gcecloud.ProviderName {
+		return nil, fmt.Errorf("Expected gce cloud got %s", cloud.ProviderName())
+	}
+
+	volumeLimits := map[string]int64{
+		gcePersistentDiskPluginName: 16,
+	}
+	return volumeLimits, nil
 }
 
 func (plugin *gcePersistentDiskPlugin) NewMounter(spec *volume.Spec, pod *v1.Pod, _ volume.VolumeOptions) (volume.Mounter, error) {

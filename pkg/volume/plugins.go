@@ -216,6 +216,14 @@ type ExpandableVolumePlugin interface {
 	RequiresFSResize() bool
 }
 
+// VolumePluginWithAttachLimits is an extended interface of VolumePlugin that restricts number of
+// volumes that can be attached to a node.
+type VolumePluginWithAttachLimits interface {
+	VolumePlugin
+	// Return number of volumes attachable on a node from the plugin
+	GetVolumeLimits() (map[string]int64, error)
+}
+
 // BlockVolumePlugin is an extend interface of VolumePlugin and is used for block volumes support.
 type BlockVolumePlugin interface {
 	VolumePlugin
