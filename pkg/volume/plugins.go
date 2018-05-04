@@ -592,6 +592,17 @@ func (pm *VolumePluginMgr) refreshProbedPlugins() {
 	}
 }
 
+// ListVolumePluginWithLimits returns plugins that have volume limits on nodes
+func (pm *VolumePluginMgr) ListVolumePluginWithLimits() []VolumePluginWithAttachLimits {
+	matchedPlugins := []VolumePluginWithAttachLimits{}
+	for _, v := range pm.plugins {
+		if plugin, ok := v.(VolumePluginWithAttachLimits); ok {
+			matchedPlugins = append(matchedPlugins, plugin)
+		}
+	}
+	return matchedPlugins
+}
+
 // FindPersistentPluginBySpec looks for a persistent volume plugin that can
 // support a given volume specification.  If no plugin is found, return an
 // error
