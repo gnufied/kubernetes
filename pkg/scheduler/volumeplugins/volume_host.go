@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Kubernetes Authors.
+Copyright 2018 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,24 +14,29 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package factory can set up a scheduler. This code is here instead of
-// cmd/scheduler for both testability and reuse.
-package factory
+// Package volumeplugins defines a dummy VolumeHost interface to initialize the
+// Volume Plugin manager
+package volumeplugins
 
 import (
 	"fmt"
-	"io"
 	"net"
 
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	clientset "k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/kubernetes/pkg/cloudprovider"
+	"k8s.io/kubernetes/pkg/util/io"
 	"k8s.io/kubernetes/pkg/util/mount"
 	"k8s.io/kubernetes/pkg/volume"
 )
 
+// SchedulerVolumeHost implements filler VolumeHost interface so as
+// it can be used for initializing volume plugins.
 type SchedulerVolumeHost struct{}
+
+var _ volume.VolumeHost = &SchedulerVolumeHost{}
 
 func (svh *SchedulerVolumeHost) GetPluginDir(podUID string) string {
 	return ""
@@ -106,5 +111,17 @@ func (svh *SchedulerVolumeHost) GetConfigMapFunc() func(namespace, name string) 
 }
 
 func (svh *SchedulerVolumeHost) GetExec(pluginName string) mount.Exec {
+	return nil
+}
+
+func (svh *SchedulerVolumeHost) GetNodeLabels() (map[string]string, error) {
+	return nil, fmt.Errorf("GetNodeLabels is unsupported in SchedulerVolumeHost")
+}
+
+func (svh *SchedulerVolumeHost) GetNodeName() types.NodeName {
+	return types.NodeName("")
+}
+
+func (svh *SchedulerVolumeHost) GetEventRecorder() record.EventRecorder {
 	return nil
 }
