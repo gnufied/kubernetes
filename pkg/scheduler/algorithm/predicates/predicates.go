@@ -84,6 +84,8 @@ const (
 	MaxGCEPDVolumeCountPred = "MaxGCEPDVolumeCount"
 	// MaxAzureDiskVolumeCountPred defines the name of predicate MaxAzureDiskVolumeCount.
 	MaxAzureDiskVolumeCountPred = "MaxAzureDiskVolumeCount"
+	// MaxAttachableVolumeLimitPred defines the name of the predicate MaxAttachableVolumeCount
+	MaxAttachableVolumeLimitPred = "MaxAttachableVolumeCount"
 	// NoVolumeZoneConflictPred defines the name of predicate NoVolumeZoneConflict.
 	NoVolumeZoneConflictPred = "NoVolumeZoneConflict"
 	// CheckNodeMemoryPressurePred defines the name of predicate CheckNodeMemoryPressure.
@@ -114,6 +116,8 @@ const (
 	GCEPDVolumeFilterType = "GCE"
 	// AzureDiskVolumeFilterType defines the filter name for AzureDiskVolumeFilter.
 	AzureDiskVolumeFilterType = "AzureDisk"
+	// AttachableVolumeLimit defines the name of filter to use for maximum attachable volume limits
+	AttachableVolumeLimit = "AttachableVolumeLimit"
 )
 
 // IMPORTANT NOTE for predicate developers:
@@ -314,6 +318,14 @@ type VolumeFilter struct {
 // types, counts the number of unique volumes, and rejects the new pod if it would place the total count over
 // the maximum.
 func NewMaxPDVolumeCountPredicate(filterName string, pvInfo PersistentVolumeInfo, pvcInfo PersistentVolumeClaimInfo) algorithm.FitPredicate {
+	// if dynamic volume threshold is enabled and filter is of type AttachableVolumeLimit
+	if utilfeature.DefaultFeatureGate.Enabled(features.DynamicVolumeThreshold) && filterName == AttachableVolumeLimit {
+		c := &MaxPDVolumeCountChecker{
+			pvcInfo: pvcInfo,
+			pvInfo:  pvInfo,
+		}
+		return c.attachableLimitPredicate
+	}
 
 	var filter VolumeFilter
 	var maxVolumes int
@@ -413,6 +425,30 @@ func (c *MaxPDVolumeCountChecker) filterVolumes(volumes []v1.Volume, namespace s
 	}
 
 	return nil
+}
+
+func (c *MaxPDVolumeCountChecker) attachableLimitPredicate(
+	pod *v1.Pod, meta algorithm.PredicateMetadata, nodeInfo *schedulercache.NodeInfo) (bool, []algorithm.PredicateFailureReason, error) {
+	// If a pod doesn't have any volume attached to it, the predicate will always be true.
+	// Thus we make a fast path for it, to avoid unnecessary computations in this case.
+	if len(pod.Spec.Volumes) == 0 {
+		return true, nil, nil
+	}
+
+	newVolumes := make(map[string]int)
+
+	return true, nil, nil
+}
+
+func (c *MaxPDVolumeCountChecker) filterAttachableVolumes(
+	volumes []v1.Volume, namespace string, result map[string]int) error {
+
+	for _, volume := range volumes {
+		if volume.PersistentVolumeClaim != nil {
+			pvcName := vol.PersistentVolumeClaim.ClaimName
+
+		}
+	}
 }
 
 func (c *MaxPDVolumeCountChecker) predicate(pod *v1.Pod, meta algorithm.PredicateMetadata, nodeInfo *schedulercache.NodeInfo) (bool, []algorithm.PredicateFailureReason, error) {
