@@ -106,6 +106,10 @@ func (plugin *awsElasticBlockStorePlugin) GetVolumeLimits() (map[string]int64, e
 	return volumeLimits, nil
 }
 
+func (plugin *awsElasticBlockStorePlugin) FullyQualifiedPluginName(spec *volume.Spec) string {
+	return awsElasticBlockStorePluginName
+}
+
 func (plugin *awsElasticBlockStorePlugin) GetAccessModes() []v1.PersistentVolumeAccessMode {
 	return []v1.PersistentVolumeAccessMode{
 		v1.ReadWriteOnce,

@@ -122,6 +122,10 @@ func (plugin *azureDataDiskPlugin) GetVolumeLimits() (map[string]int64, error) {
 	return volumeLimits, nil
 }
 
+func (plugin *azureDataDiskPlugin) FullyQualifiedPluginName(spec *volume.Spec) string {
+	return azureDataDiskPluginName
+}
+
 func (plugin *azureDataDiskPlugin) GetAccessModes() []v1.PersistentVolumeAccessMode {
 	return []v1.PersistentVolumeAccessMode{
 		v1.ReadWriteOnce,

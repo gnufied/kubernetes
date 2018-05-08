@@ -113,6 +113,10 @@ func (plugin *gcePersistentDiskPlugin) GetVolumeLimits() (map[string]int64, erro
 	return volumeLimits, nil
 }
 
+func (plugin *gcePersistentDiskPlugin) FullyQualifiedPluginName(spec *volume.Spec) string {
+	return gcePersistentDiskPluginName
+}
+
 func (plugin *gcePersistentDiskPlugin) NewMounter(spec *volume.Spec, pod *v1.Pod, _ volume.VolumeOptions) (volume.Mounter, error) {
 	// Inject real implementations here, test through the internal function.
 	return plugin.newMounterInternal(spec, pod.UID, &GCEDiskUtil{}, plugin.host.GetMounter(plugin.GetPluginName()))

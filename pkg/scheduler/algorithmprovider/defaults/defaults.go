@@ -152,9 +152,9 @@ func defaultPredicates() sets.String {
 
 	if utilfeature.DefaultFeatureGate.Enabled(features.DynamicVolumeThreshold) {
 		predicateSet.Insert(factory.RegisterFitPredicateFactory(
-			predicates.NoVolumeZoneConflictPred,
+			predicates.MaxAttachableVolumeLimitPred,
 			func(args factory.PluginFactoryArgs) algorithm.FitPredicate {
-				return predicates.NewVolumeZonePredicate(args.PVInfo, args.PVCInfo, args.StorageClassInfo)
+				return predicates.NewMaxAttachableVolumeLimitPredicate(args.PVInfo, args.PVCInfo, args.VolumePluginMgr)
 			},
 		))
 		return predicateSet

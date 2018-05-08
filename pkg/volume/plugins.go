@@ -222,6 +222,8 @@ type VolumePluginWithAttachLimits interface {
 	VolumePlugin
 	// Return number of volumes attachable on a node from the plugin
 	GetVolumeLimits() (map[string]int64, error)
+	// Return fully Qualified volume plugin name
+	FullyQualifiedPluginName(spec *Spec) string
 }
 
 // BlockVolumePlugin is an extend interface of VolumePlugin and is used for block volumes support.
@@ -615,6 +617,20 @@ func (pm *VolumePluginMgr) FindPersistentPluginBySpec(spec *Spec) (PersistentVol
 		return persistentVolumePlugin, nil
 	}
 	return nil, fmt.Errorf("no persistent volume plugin matched")
+}
+
+// FindVolumePluginWithLimitsBySpec returns volume plugin that has a limit on how many
+// of them can be attached to a node
+func (pm *VolumePluginMgr) FindVolumePluginWithLimitsBySpec(spec *Spec) (VolumePluginWithAttachLimits, error) {
+	volumePlugin, err := pm.FindPluginBySpec(spec)
+	if err != nil {
+		return nil, fmt.Errorf("Could not find volume plugin for spec : %#v", spec)
+	}
+
+	if limitedPlugin, ok := volumePlugin.(VolumePluginWithAttachLimits); ok {
+		return limitedPlugin, nil
+	}
+	return nil, fmt.Errorf("no plugin with limits found")
 }
 
 // FindPersistentPluginByName fetches a persistent volume plugin by name.  If
