@@ -454,6 +454,35 @@ func (c *MaxPDVolumeCountChecker) attachableLimitPredicate(
 		}
 	}
 
+	for k := range existingVolumes {
+		if _, ok := newVolumes[k]; ok {
+			delete(newVolumes, k)
+		}
+	}
+
+	newVolumeCount := map[string]int{}
+
+	for _, volType := range newVolumes {
+		newVolumeCount[volType]++
+	}
+
+	existingVolumeCount := map[string]int{}
+	for _, volType := range existingVolumes {
+		existingVolumeCount[volType]++
+	}
+
+	for volumeType, count := range newVolumeCount {
+		nodeCapacity, ok := nodeInfo.Node().Status.Capacity[v1.ResourceName(volumeType)]
+		if ok {
+			maxVolumeLimit := nodeCapacity.AsInt64()
+
+		}
+		usedVolumes := existingVolumeCount[volumeType]
+		if usedVolumes+count > nodeCapacity {
+			return false, []algorithm.PredicateFailureReason{ErrMaxVolumeCountExceeded}, nil
+		}
+	}
+
 	return true, nil, nil
 }
 
