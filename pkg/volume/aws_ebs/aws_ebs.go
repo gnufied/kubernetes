@@ -51,6 +51,7 @@ var _ volume.ProvisionableVolumePlugin = &awsElasticBlockStorePlugin{}
 
 const (
 	awsElasticBlockStorePluginName = "kubernetes.io/aws-ebs"
+	ebsStorageResourceName         = "storage-aws-ebs"
 	awsURLNamePrefix               = "aws://"
 )
 

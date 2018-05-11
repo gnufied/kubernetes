@@ -438,6 +438,7 @@ func (c *MaxPDVolumeCountChecker) attachableLimitPredicate(
 		return true, nil, nil
 	}
 
+	// a map of volume name and fully qualified plugin name
 	newVolumes := make(map[string]string)
 	if err := c.filterAttachableVolumes(pod.Spec.Volumes, pod.Namespace, newVolumes); err != nil {
 		return false, nil, err
@@ -447,39 +448,39 @@ func (c *MaxPDVolumeCountChecker) attachableLimitPredicate(
 		return true, nil, nil
 	}
 
-	existingVolumes := make(map[string]string)
+	// a map of volume name and fully qualified plugin name
+	usedVolumes := make(map[string]string)
 	for _, existingPod := range nodeInfo.Pods() {
-		if err := c.filterAttachableVolumes(existingPod.Spec.Volumes, existingPod.Namespace, existingVolumes); err != nil {
+		if err := c.filterAttachableVolumes(existingPod.Spec.Volumes, existingPod.Namespace, usedVolumes); err != nil {
 			return false, nil, err
 		}
 	}
 
-	for k := range existingVolumes {
+	newVolumeCount := map[string]int{}
+	usedVolumeCount := map[string]int{}
+
+	for k, volumeType := range usedVolumes {
 		if _, ok := newVolumes[k]; ok {
 			delete(newVolumes, k)
 		}
+		usedVolumeCount[volumeType]++
 	}
-
-	newVolumeCount := map[string]int{}
 
 	for _, volType := range newVolumes {
 		newVolumeCount[volType]++
 	}
 
-	existingVolumeCount := map[string]int{}
-	for _, volType := range existingVolumes {
-		existingVolumeCount[volType]++
-	}
-
 	for volumeType, count := range newVolumeCount {
 		nodeCapacity, ok := nodeInfo.Node().Status.Capacity[v1.ResourceName(volumeType)]
 		if ok {
-			maxVolumeLimit := nodeCapacity.AsInt64()
-
-		}
-		usedVolumes := existingVolumeCount[volumeType]
-		if usedVolumes+count > nodeCapacity {
-			return false, []algorithm.PredicateFailureReason{ErrMaxVolumeCountExceeded}, nil
+			maxVolumeLimit, ok := nodeCapacity.AsInt64()
+			if !ok {
+				continue
+			}
+			usedVolumes := usedVolumeCount[volumeType]
+			if usedVolumes+count > int(maxVolumeLimit) {
+				return false, []algorithm.PredicateFailureReason{ErrMaxVolumeCountExceeded}, nil
+			}
 		}
 	}
 
