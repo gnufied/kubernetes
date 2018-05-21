@@ -222,8 +222,11 @@ type VolumePluginWithAttachLimits interface {
 	VolumePlugin
 	// Return number of volumes attachable on a node from the plugin
 	GetVolumeLimits() (map[string]int64, error)
-	// Return fully Qualified volume plugin name
-	FullyQualifiedPluginName(spec *Spec) string
+	// Return volume limit key string to be used in node capacity constraints
+	// The key must start with prefix storage-limits-. For example:
+	//    - storage-limits-aws-ebs
+	//    - storage-limits-csi-cinder
+	VolumeLimitKey(spec *Spec) string
 }
 
 // BlockVolumePlugin is an extend interface of VolumePlugin and is used for block volumes support.

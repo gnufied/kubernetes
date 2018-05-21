@@ -69,6 +69,7 @@ var _ volume.VolumePluginWithAttachLimits = &azureDataDiskPlugin{}
 
 const (
 	azureDataDiskPluginName = "kubernetes.io/azure-disk"
+	azureVolumeLimitKey     = "storage-limits-azure-disk"
 )
 
 func ProbeVolumePlugins() []volume.VolumePlugin {
@@ -117,13 +118,13 @@ func (plugin *azureDataDiskPlugin) GetVolumeLimits() (map[string]int64, error) {
 	}
 
 	volumeLimits := map[string]int64{
-		azureDataDiskPluginName: 16,
+		azureVolumeLimitKey: 16,
 	}
 	return volumeLimits, nil
 }
 
-func (plugin *azureDataDiskPlugin) FullyQualifiedPluginName(spec *volume.Spec) string {
-	return azureDataDiskPluginName
+func (plugin *azureDataDiskPlugin) VolumeLimitKey(spec *volume.Spec) string {
+	return azureVolumeLimitKey
 }
 
 func (plugin *azureDataDiskPlugin) GetAccessModes() []v1.PersistentVolumeAccessMode {

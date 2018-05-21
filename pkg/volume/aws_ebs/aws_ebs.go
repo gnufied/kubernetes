@@ -51,7 +51,7 @@ var _ volume.ProvisionableVolumePlugin = &awsElasticBlockStorePlugin{}
 
 const (
 	awsElasticBlockStorePluginName = "kubernetes.io/aws-ebs"
-	ebsStorageResourceName         = "storage-aws-ebs"
+	ebsVolumeLimitKey              = "storage-limits-aws-ebs"
 	awsURLNamePrefix               = "aws://"
 )
 
@@ -102,13 +102,13 @@ func (plugin *awsElasticBlockStorePlugin) GetVolumeLimits() (map[string]int64, e
 	}
 
 	volumeLimits := map[string]int64{
-		awsElasticBlockStorePluginName: 39,
+		ebsVolumeLimitKey: 39,
 	}
 	return volumeLimits, nil
 }
 
-func (plugin *awsElasticBlockStorePlugin) FullyQualifiedPluginName(spec *volume.Spec) string {
-	return awsElasticBlockStorePluginName
+func (plugin *awsElasticBlockStorePlugin) VolumeLimitKey(spec *volume.Spec) string {
+	return ebsVolumeLimitKey
 }
 
 func (plugin *awsElasticBlockStorePlugin) GetAccessModes() []v1.PersistentVolumeAccessMode {

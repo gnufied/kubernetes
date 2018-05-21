@@ -432,9 +432,22 @@ func (c *MaxPDVolumeCountChecker) filterVolumes(volumes []v1.Volume, namespace s
 
 func (c *MaxPDVolumeCountChecker) attachableLimitPredicate(
 	pod *v1.Pod, meta algorithm.PredicateMetadata, nodeInfo *schedulercache.NodeInfo) (bool, []algorithm.PredicateFailureReason, error) {
+
+	// if feature gate is disable we return
+	if !utilfeature.DefaultFeatureGate.Enabled(features.DynamicVolumeThreshold) {
+		return true, nil, nil
+	}
+
 	// If a pod doesn't have any volume attached to it, the predicate will always be true.
 	// Thus we make a fast path for it, to avoid unnecessary computations in this case.
 	if len(pod.Spec.Volumes) == 0 {
+		return true, nil, nil
+	}
+
+	volumeLimits := nodeInfo.VolumeLimits()
+
+	// if node does not have volume limits we should let older predicats do their job
+	if len(volumeLimits) == 0 {
 		return true, nil, nil
 	}
 
@@ -521,7 +534,7 @@ func (c *MaxPDVolumeCountChecker) filterAttachableVolumes(
 				continue
 			}
 
-			pluginName := plugin.FullyQualifiedPluginName(volumeSpec)
+			pluginName := plugin.VolumeLimitKey(volumeSpec)
 			volumeName, err := plugin.GetVolumeName(volumeSpec)
 			if err != nil {
 				return fmt.Errorf("Unable to find name of the volume for PVC %s/%s", namespace, pvcName)
@@ -535,7 +548,7 @@ func (c *MaxPDVolumeCountChecker) filterAttachableVolumes(
 				continue
 			}
 
-			pluginName := plugin.FullyQualifiedPluginName(volumeSpec)
+			pluginName := plugin.VolumeLimitKey(volumeSpec)
 			volumeName, err := plugin.GetVolumeName(volumeSpec)
 			if err != nil {
 				return fmt.Errorf("Unable to find name for volume : %#v", vol)

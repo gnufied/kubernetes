@@ -52,6 +52,7 @@ var _ volume.VolumePluginWithAttachLimits = &gcePersistentDiskPlugin{}
 
 const (
 	gcePersistentDiskPluginName = "kubernetes.io/gce-pd"
+	gceVolumeLimitKey           = "storage-limits-gce-pd"
 )
 
 func getPath(uid types.UID, volName string, host volume.VolumeHost) string {
@@ -108,13 +109,13 @@ func (plugin *gcePersistentDiskPlugin) GetVolumeLimits() (map[string]int64, erro
 	}
 
 	volumeLimits := map[string]int64{
-		gcePersistentDiskPluginName: 16,
+		gceVolumeLimitKey: 16,
 	}
 	return volumeLimits, nil
 }
 
-func (plugin *gcePersistentDiskPlugin) FullyQualifiedPluginName(spec *volume.Spec) string {
-	return gcePersistentDiskPluginName
+func (plugin *gcePersistentDiskPlugin) VolumeLimitKey(spec *volume.Spec) string {
+	return gceVolumeLimitKey
 }
 
 func (plugin *gcePersistentDiskPlugin) NewMounter(spec *volume.Spec, pod *v1.Pod, _ volume.VolumeOptions) (volume.Mounter, error) {

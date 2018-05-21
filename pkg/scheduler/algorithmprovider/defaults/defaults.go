@@ -103,12 +103,39 @@ func init() {
 }
 
 func defaultPredicates() sets.String {
-	predicateSet := sets.NewString(
+	return sets.NewString(
 		// Fit is determined by volume zone requirements.
 		factory.RegisterFitPredicateFactory(
 			predicates.NoVolumeZoneConflictPred,
 			func(args factory.PluginFactoryArgs) algorithm.FitPredicate {
 				return predicates.NewVolumeZonePredicate(args.PVInfo, args.PVCInfo, args.StorageClassInfo)
+			},
+		),
+		factory.RegisterFitPredicateFactory(
+			predicates.MaxAttachableVolumeLimitPred,
+			func(args factory.PluginFactoryArgs) algorithm.FitPredicate {
+				return predicates.NewMaxAttachableVolumeLimitPredicate(args.PVInfo, args.PVCInfo, args.VolumePluginMgr)
+			},
+		),
+		// Fit is determined by whether or not there would be too many AWS EBS volumes attached to the node
+		factory.RegisterFitPredicateFactory(
+			predicates.MaxEBSVolumeCountPred,
+			func(args factory.PluginFactoryArgs) algorithm.FitPredicate {
+				return predicates.NewMaxPDVolumeCountPredicate(predicates.EBSVolumeFilterType, args.PVInfo, args.PVCInfo)
+			},
+		),
+		// Fit is determined by whether or not there would be too many GCE PD volumes attached to the node
+		factory.RegisterFitPredicateFactory(
+			predicates.MaxGCEPDVolumeCountPred,
+			func(args factory.PluginFactoryArgs) algorithm.FitPredicate {
+				return predicates.NewMaxPDVolumeCountPredicate(predicates.GCEPDVolumeFilterType, args.PVInfo, args.PVCInfo)
+			},
+		),
+		// Fit is determined by whether or not there would be too many Azure Disk volumes attached to the node
+		factory.RegisterFitPredicateFactory(
+			predicates.MaxAzureDiskVolumeCountPred,
+			func(args factory.PluginFactoryArgs) algorithm.FitPredicate {
+				return predicates.NewMaxPDVolumeCountPredicate(predicates.AzureDiskVolumeFilterType, args.PVInfo, args.PVCInfo)
 			},
 		),
 		// Fit is determined by inter-pod affinity.
@@ -149,41 +176,6 @@ func defaultPredicates() sets.String {
 			},
 		),
 	)
-
-	if utilfeature.DefaultFeatureGate.Enabled(features.DynamicVolumeThreshold) {
-		predicateSet.Insert(factory.RegisterFitPredicateFactory(
-			predicates.MaxAttachableVolumeLimitPred,
-			func(args factory.PluginFactoryArgs) algorithm.FitPredicate {
-				return predicates.NewMaxAttachableVolumeLimitPredicate(args.PVInfo, args.PVCInfo, args.VolumePluginMgr)
-			},
-		))
-		return predicateSet
-	}
-
-	predicateSet.Insert(
-		// Fit is determined by whether or not there would be too many AWS EBS volumes attached to the node
-		factory.RegisterFitPredicateFactory(
-			predicates.MaxEBSVolumeCountPred,
-			func(args factory.PluginFactoryArgs) algorithm.FitPredicate {
-				return predicates.NewMaxPDVolumeCountPredicate(predicates.EBSVolumeFilterType, args.PVInfo, args.PVCInfo)
-			},
-		),
-		// Fit is determined by whether or not there would be too many GCE PD volumes attached to the node
-		factory.RegisterFitPredicateFactory(
-			predicates.MaxGCEPDVolumeCountPred,
-			func(args factory.PluginFactoryArgs) algorithm.FitPredicate {
-				return predicates.NewMaxPDVolumeCountPredicate(predicates.GCEPDVolumeFilterType, args.PVInfo, args.PVCInfo)
-			},
-		),
-		// Fit is determined by whether or not there would be too many Azure Disk volumes attached to the node
-		factory.RegisterFitPredicateFactory(
-			predicates.MaxAzureDiskVolumeCountPred,
-			func(args factory.PluginFactoryArgs) algorithm.FitPredicate {
-				return predicates.NewMaxPDVolumeCountPredicate(predicates.AzureDiskVolumeFilterType, args.PVInfo, args.PVCInfo)
-			},
-		))
-
-	return predicateSet
 }
 
 // ApplyFeatureGates applies algorithm by feature gates.
