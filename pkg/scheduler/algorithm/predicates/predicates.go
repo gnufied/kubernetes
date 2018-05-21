@@ -451,7 +451,7 @@ func (c *MaxPDVolumeCountChecker) attachableLimitPredicate(
 		return true, nil, nil
 	}
 
-	// a map of volume name and fully qualified plugin name
+	// a map of volume unique name and volume limit key
 	newVolumes := make(map[string]string)
 	if err := c.filterAttachableVolumes(pod.Spec.Volumes, pod.Namespace, newVolumes); err != nil {
 		return false, nil, err
@@ -461,37 +461,33 @@ func (c *MaxPDVolumeCountChecker) attachableLimitPredicate(
 		return true, nil, nil
 	}
 
-	// a map of volume name and fully qualified plugin name
-	usedVolumes := make(map[string]string)
+	// a map of volume unique name and volume limit key
+	attachedVolumes := make(map[string]string)
 	for _, existingPod := range nodeInfo.Pods() {
-		if err := c.filterAttachableVolumes(existingPod.Spec.Volumes, existingPod.Namespace, usedVolumes); err != nil {
+		if err := c.filterAttachableVolumes(existingPod.Spec.Volumes, existingPod.Namespace, attachedVolumes); err != nil {
 			return false, nil, err
 		}
 	}
 
 	newVolumeCount := map[string]int{}
-	usedVolumeCount := map[string]int{}
+	attachedVolumeCount := map[string]int{}
 
-	for k, volumeType := range usedVolumes {
+	for k, volumeType := range attachedVolumes {
 		if _, ok := newVolumes[k]; ok {
 			delete(newVolumes, k)
 		}
-		usedVolumeCount[volumeType]++
+		attachedVolumeCount[volumeType]++
 	}
 
 	for _, volType := range newVolumes {
 		newVolumeCount[volType]++
 	}
 
-	for volumeType, count := range newVolumeCount {
-		nodeCapacity, ok := nodeInfo.Node().Status.Capacity[v1.ResourceName(volumeType)]
+	for volumeLimitKey, count := range newVolumeCount {
+		maxVolumeLimit, ok := nodeInfo.VolumeLimits()[v1.ResourceName(volumeLimitKey)]
 		if ok {
-			maxVolumeLimit, ok := nodeCapacity.AsInt64()
-			if !ok {
-				continue
-			}
-			usedVolumes := usedVolumeCount[volumeType]
-			if usedVolumes+count > int(maxVolumeLimit) {
+			currentVolumeCount := attachedVolumeCount[volumeLimitKey]
+			if currentVolumeCount+count > int(maxVolumeLimit) {
 				return false, []algorithm.PredicateFailureReason{ErrMaxVolumeCountExceeded}, nil
 			}
 		}
@@ -514,17 +510,20 @@ func (c *MaxPDVolumeCountChecker) filterAttachableVolumes(
 			pvc, err := c.pvcInfo.GetPersistentVolumeClaimInfo(namespace, pvcName)
 
 			if err != nil {
-				return fmt.Errorf("Unable to look up PVC info for %s/%s", namespace, pvcName)
+				glog.Errorf("Unable to look up PVC info for %s/%s", namespace, pvcName)
+				continue
 			}
 
 			pvName := pvc.Spec.VolumeName
 			if pvName == "" {
-				return fmt.Errorf("Persistent volume had no name for claim %s/%s", namespace, pvcName)
+				glog.Errorf("Persistent volume had no name for claim %s/%s", namespace, pvcName)
+				continue
 			}
 			pv, err := c.pvInfo.GetPersistentVolumeInfo(pvName)
 
 			if err != nil {
-				return fmt.Errorf("Unable to look up PV info for PVC %s/%s and PV %s", namespace, pvcName, pvName)
+				glog.Errorf("Unable to look up PV info for PVC %s/%s and PV %s", namespace, pvcName, pvName)
+				continue
 			}
 
 			volumeSpec := volume.NewSpecFromPersistentVolume(pv, false)
@@ -537,7 +536,8 @@ func (c *MaxPDVolumeCountChecker) filterAttachableVolumes(
 			pluginName := plugin.VolumeLimitKey(volumeSpec)
 			volumeName, err := plugin.GetVolumeName(volumeSpec)
 			if err != nil {
-				return fmt.Errorf("Unable to find name of the volume for PVC %s/%s", namespace, pvcName)
+				glog.Errorf("Unable to find name of the volume for PVC %s/%s", namespace, pvcName)
+				continue
 			}
 			result[volumeName] = pluginName
 		} else {
@@ -551,7 +551,8 @@ func (c *MaxPDVolumeCountChecker) filterAttachableVolumes(
 			pluginName := plugin.VolumeLimitKey(volumeSpec)
 			volumeName, err := plugin.GetVolumeName(volumeSpec)
 			if err != nil {
-				return fmt.Errorf("Unable to find name for volume : %#v", vol)
+				glog.Errorf("Unable to find name for volume : %#v", vol)
+				continue
 			}
 			result[volumeName] = pluginName
 		}

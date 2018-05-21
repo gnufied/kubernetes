@@ -226,6 +226,7 @@ type VolumePluginWithAttachLimits interface {
 	// The key must start with prefix storage-limits-. For example:
 	//    - storage-limits-aws-ebs
 	//    - storage-limits-csi-cinder
+	// The key should respect character limit of ResourceName type
 	VolumeLimitKey(spec *Spec) string
 }
 
