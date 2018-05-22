@@ -336,7 +336,7 @@ func TestVolumeCountConflicts(t *testing.T) {
 			existingPods: []*v1.Pod{oneVolPod, deletedPVCPod},
 			filterName:   EBSVolumeFilterType,
 			maxVols:      2,
-			fits:         false,
+			fits:         true,
 			test:         "pod with missing PVC is counted towards the PV limit",
 		},
 		{
@@ -352,16 +352,16 @@ func TestVolumeCountConflicts(t *testing.T) {
 			existingPods: []*v1.Pod{oneVolPod, twoDeletedPVCPod},
 			filterName:   EBSVolumeFilterType,
 			maxVols:      3,
-			fits:         false,
-			test:         "pod with missing two PVCs is counted towards the PV limit twice",
+			fits:         true,
+			test:         "pod with missing two PVCs shoult not be counted towards limit",
 		},
 		{
 			newPod:       onePVCPod(EBSVolumeFilterType),
 			existingPods: []*v1.Pod{oneVolPod, deletedPVPod},
 			filterName:   EBSVolumeFilterType,
 			maxVols:      2,
-			fits:         false,
-			test:         "pod with missing PV is counted towards the PV limit",
+			fits:         true,
+			test:         "pod with missing PV is not counted towards the PV limit",
 		},
 		{
 			newPod:       onePVCPod(EBSVolumeFilterType),
@@ -384,16 +384,16 @@ func TestVolumeCountConflicts(t *testing.T) {
 			existingPods: []*v1.Pod{oneVolPod, deletedPVPod},
 			filterName:   EBSVolumeFilterType,
 			maxVols:      2,
-			fits:         false,
-			test:         "two pods missing different PVs are counted towards the PV limit twice",
+			fits:         true,
+			test:         "two pods missing different PVs are not counted towards the PV limit twice",
 		},
 		{
 			newPod:       onePVCPod(EBSVolumeFilterType),
 			existingPods: []*v1.Pod{oneVolPod, unboundPVCPod},
 			filterName:   EBSVolumeFilterType,
 			maxVols:      2,
-			fits:         false,
-			test:         "pod with unbound PVC is counted towards the PV limit",
+			fits:         true,
+			test:         "pod with unbound PVC is not counted towards the PV limit",
 		},
 		{
 			newPod:       onePVCPod(EBSVolumeFilterType),
@@ -416,8 +416,8 @@ func TestVolumeCountConflicts(t *testing.T) {
 			existingPods: []*v1.Pod{oneVolPod, unboundPVCPod},
 			filterName:   EBSVolumeFilterType,
 			maxVols:      2,
-			fits:         false,
-			test:         "two different unbound PVCs are counted towards the PV limit as two volumes",
+			fits:         true,
+			test:         "two different unbound PVCs are not counted towards the PV limit as two volumes",
 		},
 		// filterName:GCEPDVolumeFilterType
 		{
@@ -815,13 +815,13 @@ func TestVolumeCountConflicts(t *testing.T) {
 			node := getNodeWithPodAndVolumeLimits(test.existingPods, int64(test.maxVols), test.filterName)
 			fits, reasons, err := pred.predicateFunc(test.newPod, PredicateMetadata(test.newPod, nil), node)
 			if err != nil {
-				t.Errorf("%s - [%s]%s: unexpected error: %v", pred.name, test.filterName, test.test, err)
+				t.Errorf("%s - [%s] %s: unexpected error: %v", pred.name, test.filterName, test.test, err)
 			}
 			if !fits && !reflect.DeepEqual(reasons, expectedFailureReasons) {
-				t.Errorf("%s - [%s]%s: unexpected failure reasons: %v, want: %v", pred.name, test.filterName, test.test, reasons, expectedFailureReasons)
+				t.Errorf("%s - [%s] %s: unexpected failure reasons: %v, want: %v", pred.name, test.filterName, test.test, reasons, expectedFailureReasons)
 			}
 			if fits != test.fits {
-				t.Errorf("%s - [%s]%s: expected %v, got %v", pred.name, test.filterName, test.test, test.fits, fits)
+				t.Errorf("%s - [%s] %s: expected %v, got %v", pred.name, test.filterName, test.test, test.fits, fits)
 			}
 		}
 	}

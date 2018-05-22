@@ -388,36 +388,21 @@ func (c *MaxPDVolumeCountChecker) filterVolumes(volumes []v1.Volume, namespace s
 				return fmt.Errorf("PersistentVolumeClaim had no name")
 			}
 
-			// Until we know real ID of the volume use namespace/pvcName as substitute
-			// with a random prefix (calculated and stored inside 'c' during initialization)
-			// to avoid conflicts with existing volume IDs.
-			pvID := fmt.Sprintf("%s-%s/%s", c.randomVolumeIDPrefix, namespace, pvcName)
-
 			pvc, err := c.pvcInfo.GetPersistentVolumeClaimInfo(namespace, pvcName)
 			if err != nil || pvc == nil {
-				// if the PVC is not found, log the error and count the PV towards the PV limit
 				glog.V(4).Infof("Unable to look up PVC info for %s/%s, assuming PVC matches predicate when counting limits: %v", namespace, pvcName, err)
-				filteredVolumes[pvID] = true
 				continue
 			}
 
 			pvName := pvc.Spec.VolumeName
 			if pvName == "" {
-				// PVC is not bound. It was either deleted and created again or
-				// it was forcefully unbound by admin. The pod can still use the
-				// original PV where it was bound to -> log the error and count
-				// the PV towards the PV limit
 				glog.V(4).Infof("PVC %s/%s is not bound, assuming PVC matches predicate when counting limits", namespace, pvcName)
-				filteredVolumes[pvID] = true
 				continue
 			}
 
 			pv, err := c.pvInfo.GetPersistentVolumeInfo(pvName)
 			if err != nil || pv == nil {
-				// if the PV is not found, log the error
-				// and count the PV towards the PV limit
 				glog.V(4).Infof("Unable to look up PV info for %s/%s/%s, assuming PV matches predicate when counting limits: %v", namespace, pvcName, pvName, err)
-				filteredVolumes[pvID] = true
 				continue
 			}
 
@@ -446,7 +431,7 @@ func (c *MaxPDVolumeCountChecker) attachableLimitPredicate(
 
 	volumeLimits := nodeInfo.VolumeLimits()
 
-	// if node does not have volume limits we should let older predicats do their job
+	// if node does not have volume limits we should let older predicates do their job
 	if len(volumeLimits) == 0 {
 		return true, nil, nil
 	}
@@ -484,7 +469,7 @@ func (c *MaxPDVolumeCountChecker) attachableLimitPredicate(
 	}
 
 	for volumeLimitKey, count := range newVolumeCount {
-		maxVolumeLimit, ok := nodeInfo.VolumeLimits()[v1.ResourceName(volumeLimitKey)]
+		maxVolumeLimit, ok := volumeLimits[v1.ResourceName(volumeLimitKey)]
 		if ok {
 			currentVolumeCount := attachedVolumeCount[volumeLimitKey]
 			if currentVolumeCount+count > int(maxVolumeLimit) {
