@@ -17,9 +17,11 @@ limitations under the License.
 package aws_ebs
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -104,6 +106,22 @@ func (plugin *awsElasticBlockStorePlugin) GetVolumeLimits() (map[string]int64, e
 	volumeLimits := map[string]int64{
 		ebsVolumeLimitKey: 39,
 	}
+	instances, ok := cloud.Instances()
+	if !ok {
+		glog.V(3).Infof("Failed to get instances from cloud provider")
+		return volumeLimits, nil
+	}
+
+	instanceType, err := instances.InstanceType(context.TODO(), plugin.host.GetNodeName())
+	if err != nil {
+		glog.V(3).Infof("Failed to get instance type from AWS cloud provider")
+		return volumeLimits, nil
+	}
+
+	if ok, _ := regexp.MatchString("^[cm]5.*", instanceType); ok {
+		volumeLimits[ebsVolumeLimitKey] = 25
+	}
+
 	return volumeLimits, nil
 }
 
