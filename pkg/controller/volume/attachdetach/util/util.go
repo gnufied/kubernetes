@@ -240,6 +240,7 @@ func ProcessPodVolumes(pod *v1.Pod, addVolumes bool, desiredStateOfWorld cache.D
 
 		uniquePodName := util.GetUniquePodName(pod)
 		if addVolumes {
+			glog.Infof("** Adding pod %q(UID %q) to DSW", uniquePodName, pod.UID)
 			// Add volume to desired state of world
 			_, err := desiredStateOfWorld.AddPod(
 				uniquePodName, pod, volumeSpec, nodeName)
