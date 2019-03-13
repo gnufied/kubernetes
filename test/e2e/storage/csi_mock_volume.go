@@ -378,7 +378,7 @@ var _ = utils.SIGDescribe("CSI mock volume", func() {
 
 			_, _, pod3 := createPod()
 			Expect(pod3).NotTo(BeNil(), "while creating third pod")
-			err = waitForMaxVolumeCondition(pod3, m.cs)
+			pod3, err = waitForMaxVolumeCondition(pod3, m.cs)
 			Expect(err).NotTo(HaveOccurred(), "while waiting for max volume condition on pod : %+v", pod3)
 		})
 	})
@@ -556,7 +556,7 @@ var _ = utils.SIGDescribe("CSI mock volume", func() {
 
 })
 
-func waitForMaxVolumeCondition(pod *v1.Pod, cs clientset.Interface) error {
+func waitForMaxVolumeCondition(pod *v1.Pod, cs clientset.Interface) (*v1.Pod, error) {
 	var err error
 	waitErr := wait.PollImmediate(10*time.Second, csiPodUnschedulableTimeout, func() (bool, error) {
 		pod, err = cs.CoreV1().Pods(pod.Namespace).Get(pod.Name, metav1.GetOptions{})
@@ -573,7 +573,7 @@ func waitForMaxVolumeCondition(pod *v1.Pod, cs clientset.Interface) error {
 		}
 		return false, nil
 	})
-	return waitErr
+	return pod, waitErr
 }
 
 func checkNodeForLimits(nodeName string, attachKey v1.ResourceName, cs clientset.Interface) (int, error) {
