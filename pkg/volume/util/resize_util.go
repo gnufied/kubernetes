@@ -21,6 +21,8 @@ import (
 	"fmt"
 
 	"k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	clientset "k8s.io/client-go/kubernetes"
@@ -46,13 +48,85 @@ func ClaimToClaimKey(claim *v1.PersistentVolumeClaim) string {
 	return fmt.Sprintf("%s/%s", claim.Namespace, claim.Name)
 }
 
+// UpdatePVSize updates just pv size after cloudprovider resizing is successful
+func UpdatePVSize(
+	pv *v1.PersistentVolume,
+	newSize resource.Quantity,
+	kubeClient clientset.Interface) error {
+	pvClone := pv.DeepCopy()
+
+	oldData, err := json.Marshal(pvClone)
+	if err != nil {
+		return fmt.Errorf("Unexpected error marshaling old PV %q with error : %v", pvClone.Name, err)
+	}
+
+	pvClone.Spec.Capacity[v1.ResourceStorage] = newSize
+
+	newData, err := json.Marshal(pvClone)
+	if err != nil {
+		return fmt.Errorf("Unexpected error marshaling new PV %q with error : %v", pvClone.Name, err)
+	}
+
+	patchBytes, err := strategicpatch.CreateTwoWayMergePatch(oldData, newData, pvClone)
+	if err != nil {
+		return fmt.Errorf("Error Creating two way merge patch for PV %q with error : %v", pvClone.Name, err)
+	}
+
+	_, err = kubeClient.CoreV1().PersistentVolumes().Patch(pvClone.Name, types.StrategicMergePatchType, patchBytes)
+	if err != nil {
+		return fmt.Errorf("Error Patching PV %q with error : %v", pvClone.Name, err)
+	}
+	return nil
+}
+
+// MarkResizeInProgress marks cloudprovider resizing as in progress
+func MarkResizeInProgress(
+	pvc *v1.PersistentVolumeClaim,
+	kubeClient clientset.Interface) (*v1.PersistentVolumeClaim, error) {
+	// Mark PVC as Resize Started
+	progressCondition := v1.PersistentVolumeClaimCondition{
+		Type:               v1.PersistentVolumeClaimResizing,
+		Status:             v1.ConditionTrue,
+		LastTransitionTime: metav1.Now(),
+	}
+	conditions := []v1.PersistentVolumeClaimCondition{progressCondition}
+	newPVC := pvc.DeepCopy()
+	newPVC = MergeResizeConditionOnPVC(newPVC, conditions)
+	return PatchPVCStatus(pvc /*oldPVC*/, newPVC, kubeClient)
+}
+
+// MarkForFSResize marks file system resizing as pending
+func MarkForFSResize(
+	pvc *v1.PersistentVolumeClaim,
+	kubeClient clientset.Interface) error {
+	pvcCondition := v1.PersistentVolumeClaimCondition{
+		Type:               v1.PersistentVolumeClaimFileSystemResizePending,
+		Status:             v1.ConditionTrue,
+		LastTransitionTime: metav1.Now(),
+		Message:            "Waiting for user to (re-)start a pod to finish file system resize of volume on node.",
+	}
+	conditions := []v1.PersistentVolumeClaimCondition{pvcCondition}
+	newPVC := pvc.DeepCopy()
+	newPVC = MergeResizeConditionOnPVC(newPVC, conditions)
+	_, err := PatchPVCStatus(pvc /*oldPVC*/, newPVC, kubeClient)
+	return err
+}
+
+// MarkResizeFinished marks all resizing as done
+func MarkResizeFinished(
+	pvc *v1.PersistentVolumeClaim,
+	newSize resource.Quantity,
+	kubeClient clientset.Interface) error {
+	return MarkFSResizeFinished(pvc, newSize, kubeClient)
+}
+
 // MarkFSResizeFinished marks file system resizing as done
 func MarkFSResizeFinished(
 	pvc *v1.PersistentVolumeClaim,
-	capacity v1.ResourceList,
+	newSize resource.Quantity,
 	kubeClient clientset.Interface) error {
 	newPVC := pvc.DeepCopy()
-	newPVC.Status.Capacity = capacity
+	newPVC.Status.Capacity[v1.ResourceStorage] = newSize
 	newPVC = MergeResizeConditionOnPVC(newPVC, []v1.PersistentVolumeClaimCondition{})
 	_, err := PatchPVCStatus(pvc /*oldPVC*/, newPVC, kubeClient)
 	return err
