@@ -59,6 +59,9 @@ type KubeControllerManagerConfiguration struct {
 	// EndpointControllerConfiguration holds configuration for EndpointController
 	// related features.
 	EndpointController EndpointControllerConfiguration
+	// ExpandControllerConfiguration holds configuration for ExpandController
+	// related features.
+	ExpandController ExpandControllerConfiguration
 	// GarbageCollectorControllerConfiguration holds configuration for
 	// GarbageCollectorController related features.
 	GarbageCollectorController GarbageCollectorControllerConfiguration
@@ -230,6 +233,14 @@ type EndpointControllerConfiguration struct {
 	// that will be done concurrently. Larger number = faster endpoint updating,
 	// but more CPU (and network) load.
 	ConcurrentEndpointSyncs int32
+}
+
+// ExpandControllerConfiguration contains elements describing ExpandController.
+type ExpandControllerConfiguration struct {
+	// concurrentExpandSyncs is the number of expand syncing operations
+	// that will be done concurrently. Larger number = faster endpoint updating,
+	// but more CPU (and network) load.
+	ConcurrentExpandSyncs int32
 }
 
 // GarbageCollectorControllerConfiguration contains elements describing GarbageCollectorController.

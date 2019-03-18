@@ -42,6 +42,7 @@ func SetObjectDefaults_KubeControllerManagerConfiguration(in *v1alpha1.KubeContr
 	SetDefaults_DaemonSetControllerConfiguration(&in.DaemonSetController)
 	SetDefaults_DeploymentControllerConfiguration(&in.DeploymentController)
 	SetDefaults_EndpointControllerConfiguration(&in.EndpointController)
+	SetDefaults_ExpandControllerConfiguration(&in.ExpandController)
 	SetDefaults_GarbageCollectorControllerConfiguration(&in.GarbageCollectorController)
 	SetDefaults_HPAControllerConfiguration(&in.HPAController)
 	SetDefaults_JobControllerConfiguration(&in.JobController)

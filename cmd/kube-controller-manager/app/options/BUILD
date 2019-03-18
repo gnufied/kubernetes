@@ -15,6 +15,7 @@ go_library(
         "deploymentcontroller.go",
         "deprecatedcontroller.go",
         "endpointcontroller.go",
+        "expandcontroller.go",
         "garbagecollectorcontroller.go",
         "hpacontroller.go",
         "jobcontroller.go",

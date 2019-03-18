@@ -53,6 +53,7 @@ func TestAddFlags(t *testing.T) {
 		"--cluster-signing-key-file=/cluster-signing-key",
 		"--concurrent-deployment-syncs=10",
 		"--concurrent-endpoint-syncs=10",
+		"--concurrent-expand-syncs=10",
 		"--concurrent-gc-syncs=30",
 		"--concurrent-namespace-syncs=20",
 		"--concurrent-replicaset-syncs=10",
@@ -206,6 +207,11 @@ func TestAddFlags(t *testing.T) {
 		EndpointController: &EndpointControllerOptions{
 			&kubectrlmgrconfig.EndpointControllerConfiguration{
 				ConcurrentEndpointSyncs: 10,
+			},
+		},
+		ExpandController: &ExpandControllerOptions{
+			&kubectrlmgrconfig.ExpandControllerConfiguration{
+				ConcurrentExpandSyncs: 10,
 			},
 		},
 		GarbageCollectorController: &GarbageCollectorControllerOptions{

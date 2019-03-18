@@ -141,6 +141,12 @@ func SetDefaults_EndpointControllerConfiguration(obj *kubectrlmgrconfigv1alpha1.
 	}
 }
 
+func SetDefaults_ExpandControllerConfiguration(obj *kubectrlmgrconfigv1alpha1.ExpandControllerConfiguration) {
+	if obj.ConcurrentExpandSyncs == 0 {
+		obj.ConcurrentExpandSyncs = 5
+	}
+}
+
 func SetDefaults_GarbageCollectorControllerConfiguration(obj *kubectrlmgrconfigv1alpha1.GarbageCollectorControllerConfiguration) {
 	if obj.EnableGarbageCollector == nil {
 		obj.EnableGarbageCollector = utilpointer.BoolPtr(true)
