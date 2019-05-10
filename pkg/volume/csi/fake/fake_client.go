@@ -73,6 +73,7 @@ type NodeClient struct {
 	expansionSet         bool
 	volumeStatsSet       bool
 	nodeGetInfoResp      *csipb.NodeGetInfoResponse
+	nodeVolumeStatsResp  *csipb.NodeGetVolumeStatsResponse
 	nextErr              error
 }
 
@@ -106,6 +107,10 @@ func NewNodeClientWithVolumeStats(volumeStatsSet bool) *NodeClient {
 // SetNextError injects next expected error
 func (f *NodeClient) SetNextError(err error) {
 	f.nextErr = err
+}
+
+func (f *NodeClient) SetNodeVolumeStatsResp(resp *csipb.NodeGetVolumeStatsResponse) {
+	f.nodeVolumeStatsResp = resp
 }
 
 func (f *NodeClient) SetNodeGetInfoResp(resp *csipb.NodeGetInfoResponse) {
@@ -305,6 +310,9 @@ func (f *NodeClient) NodeGetVolumeStats(ctx context.Context, req *csipb.NodeGetV
 	}
 	if req.GetVolumePath() == "" {
 		return nil, errors.New("missing Volume path")
+	}
+	if f.nodeVolumeStatsResp != nil {
+		return f.nodeVolumeStatsResp, nil
 	}
 	return &csipb.NodeGetVolumeStatsResponse{}, nil
 }

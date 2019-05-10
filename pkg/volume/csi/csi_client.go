@@ -925,7 +925,8 @@ func (c *csiDriverClient) nodeGetVolumeStatsV1(
 		return nil, err
 	}
 	usages := resp.GetUsage()
-	var ucb *volume.Metrics
+	fmt.Printf("metrics is %+v", usages)
+	metrics := &volume.Metrics{}
 	if usages == nil {
 		return nil, nil
 	}
@@ -933,17 +934,17 @@ func (c *csiDriverClient) nodeGetVolumeStatsV1(
 		unit = usage.GetUnit()
 		switch unit.String() {
 		case "BYTES":
-			ucb.Available = resource.NewQuantity(usage.GetAvailable(), resource.BinarySI)
-			ucb.Capacity = resource.NewQuantity(usage.GetTotal(), resource.BinarySI)
-			ucb.Used = resource.NewQuantity(usage.GetUsed(), resource.BinarySI)
+			metrics.Available = resource.NewQuantity(usage.GetAvailable(), resource.BinarySI)
+			metrics.Capacity = resource.NewQuantity(usage.GetTotal(), resource.BinarySI)
+			metrics.Used = resource.NewQuantity(usage.GetUsed(), resource.BinarySI)
 		case "INODES":
-			ucb.InodesFree = resource.NewQuantity(usage.GetAvailable(), resource.BinarySI)
-			ucb.Inodes = resource.NewQuantity(usage.GetTotal(), resource.BinarySI)
-			ucb.InodesUsed = resource.NewQuantity(usage.GetUsed(), resource.BinarySI)
+			metrics.InodesFree = resource.NewQuantity(usage.GetAvailable(), resource.BinarySI)
+			metrics.Inodes = resource.NewQuantity(usage.GetTotal(), resource.BinarySI)
+			metrics.InodesUsed = resource.NewQuantity(usage.GetUsed(), resource.BinarySI)
 		default:
 			klog.Errorf("unknown key %s in usage", unit.String())
 		}
 
 	}
-	return ucb, nil
+	return metrics, nil
 }
