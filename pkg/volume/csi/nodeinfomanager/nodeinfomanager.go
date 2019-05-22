@@ -22,14 +22,14 @@ import (
 	"encoding/json"
 	goerrors "errors"
 	"fmt"
+	"math"
 	"strings"
 
 	"time"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	storagev1beta1 "k8s.io/api/storage/v1beta1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
@@ -41,7 +41,6 @@ import (
 	"k8s.io/kubernetes/pkg/features"
 	nodeutil "k8s.io/kubernetes/pkg/util/node"
 	"k8s.io/kubernetes/pkg/volume"
-	"k8s.io/kubernetes/pkg/volume/util"
 )
 
 const (
@@ -117,17 +116,13 @@ func (nim *nodeInfoManager) InstallCSIDriver(driverName string, driverNodeID str
 		nodeUpdateFuncs = append(nodeUpdateFuncs, updateTopologyLabels(topology))
 	}
 
-	if utilfeature.DefaultFeatureGate.Enabled(features.AttachVolumeLimit) {
-		nodeUpdateFuncs = append(nodeUpdateFuncs, updateMaxAttachLimit(driverName, maxAttachLimit))
-	}
-
 	err := nim.updateNode(nodeUpdateFuncs...)
 	if err != nil {
 		return fmt.Errorf("error updating Node object with CSI driver node info: %v", err)
 	}
 
 	if utilfeature.DefaultFeatureGate.Enabled(features.CSINodeInfo) {
-		err = nim.updateCSINode(driverName, driverNodeID, topology)
+		err = nim.updateCSINode(driverName, driverNodeID, maxAttachLimit, topology)
 		if err != nil {
 			return fmt.Errorf("error updating CSINode object with CSI driver node info: %v", err)
 		}
@@ -148,7 +143,6 @@ func (nim *nodeInfoManager) UninstallCSIDriver(driverName string) error {
 	}
 
 	err := nim.updateNode(
-		removeMaxAttachLimit(driverName),
 		removeNodeIDFromNode(driverName),
 	)
 	if err != nil {
@@ -354,6 +348,7 @@ func updateTopologyLabels(topology map[string]string) nodeUpdateFunc {
 func (nim *nodeInfoManager) updateCSINode(
 	driverName string,
 	driverNodeID string,
+	maxAttachLimit int64,
 	topology map[string]string) error {
 
 	csiKubeClient := nim.volumeHost.GetKubeClient()
@@ -363,7 +358,7 @@ func (nim *nodeInfoManager) updateCSINode(
 
 	var updateErrs []error
 	err := wait.ExponentialBackoff(updateBackoff, func() (bool, error) {
-		if err := nim.tryUpdateCSINode(csiKubeClient, driverName, driverNodeID, topology); err != nil {
+		if err := nim.tryUpdateCSINode(csiKubeClient, driverName, driverNodeID, maxAttachLimit, topology); err != nil {
 			updateErrs = append(updateErrs, err)
 			return false, nil
 		}
@@ -379,6 +374,7 @@ func (nim *nodeInfoManager) tryUpdateCSINode(
 	csiKubeClient clientset.Interface,
 	driverName string,
 	driverNodeID string,
+	maxAttachLimit int64,
 	topology map[string]string) error {
 
 	nodeInfo, err := csiKubeClient.StorageV1beta1().CSINodes().Get(string(nim.nodeName), metav1.GetOptions{})
@@ -389,7 +385,7 @@ func (nim *nodeInfoManager) tryUpdateCSINode(
 		return err
 	}
 
-	return nim.installDriverToCSINode(nodeInfo, driverName, driverNodeID, topology)
+	return nim.installDriverToCSINode(nodeInfo, driverName, driverNodeID, maxAttachLimit, topology)
 }
 
 func (nim *nodeInfoManager) InitializeCSINodeWithAnnotation() error {
@@ -515,6 +511,7 @@ func (nim *nodeInfoManager) installDriverToCSINode(
 	nodeInfo *storagev1beta1.CSINode,
 	driverName string,
 	driverNodeID string,
+	maxAttachLimit int64,
 	topology map[string]string) error {
 
 	csiKubeClient := nim.volumeHost.GetKubeClient()
@@ -553,6 +550,19 @@ func (nim *nodeInfoManager) installDriverToCSINode(
 		Name:         driverName,
 		NodeID:       driverNodeID,
 		TopologyKeys: topologyKeys.List(),
+	}
+
+	if utilfeature.DefaultFeatureGate.Enabled(features.AttachVolumeLimit) {
+		if maxAttachLimit > 0 {
+			if maxAttachLimit > math.MaxInt32 {
+				klog.Warningf("Exceeded max supported attach limit value, truncating it to %d", math.MaxInt32)
+				maxAttachLimit = math.MaxInt32
+			}
+			m := int32(maxAttachLimit)
+			driverSpec.Allocatable = &storagev1beta1.VolumeNodeResources{Count: &m}
+		} else {
+			klog.Errorf("Invalid attach limit value %d cannot be added to CSINode object for %q", maxAttachLimit, driverName)
+		}
 	}
 
 	newDriverSpecs = append(newDriverSpecs, driverSpec)
@@ -619,57 +629,4 @@ func (nim *nodeInfoManager) tryUninstallDriverFromCSINode(
 
 	return err // do not wrap error
 
-}
-
-func updateMaxAttachLimit(driverName string, maxLimit int64) nodeUpdateFunc {
-	return func(node *v1.Node) (*v1.Node, bool, error) {
-		if maxLimit <= 0 {
-			klog.V(4).Infof("skipping adding attach limit for %s", driverName)
-			return node, false, nil
-		}
-
-		if node.Status.Capacity == nil {
-			node.Status.Capacity = v1.ResourceList{}
-		}
-		if node.Status.Allocatable == nil {
-			node.Status.Allocatable = v1.ResourceList{}
-		}
-		limitKeyName := util.GetCSIAttachLimitKey(driverName)
-		node.Status.Capacity[v1.ResourceName(limitKeyName)] = *resource.NewQuantity(maxLimit, resource.DecimalSI)
-		node.Status.Allocatable[v1.ResourceName(limitKeyName)] = *resource.NewQuantity(maxLimit, resource.DecimalSI)
-
-		return node, true, nil
-	}
-}
-
-func removeMaxAttachLimit(driverName string) nodeUpdateFunc {
-	return func(node *v1.Node) (*v1.Node, bool, error) {
-		limitKey := v1.ResourceName(util.GetCSIAttachLimitKey(driverName))
-
-		capacityExists := false
-		if node.Status.Capacity != nil {
-			_, capacityExists = node.Status.Capacity[limitKey]
-		}
-
-		allocatableExists := false
-		if node.Status.Allocatable != nil {
-			_, allocatableExists = node.Status.Allocatable[limitKey]
-		}
-
-		if !capacityExists && !allocatableExists {
-			return node, false, nil
-		}
-
-		delete(node.Status.Capacity, limitKey)
-		if len(node.Status.Capacity) == 0 {
-			node.Status.Capacity = nil
-		}
-
-		delete(node.Status.Allocatable, limitKey)
-		if len(node.Status.Allocatable) == 0 {
-			node.Status.Allocatable = nil
-		}
-
-		return node, true, nil
-	}
 }
