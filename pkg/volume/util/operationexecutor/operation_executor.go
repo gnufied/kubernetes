@@ -27,6 +27,7 @@ import (
 	"k8s.io/klog"
 
 	"k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/kubernetes/pkg/util/mount"
 	"k8s.io/kubernetes/pkg/volume"
@@ -174,7 +175,7 @@ type ActualStateOfWorldMounterUpdater interface {
 	MarkDeviceAsUnmounted(volumeName v1.UniqueVolumeName) error
 
 	// Marks the specified volume's file system resize request is finished.
-	MarkVolumeAsResized(podName volumetypes.UniquePodName, volumeName v1.UniqueVolumeName) error
+	MarkVolumeAsResized(newSize resource.Quantity, volumeName v1.UniqueVolumeName) error
 }
 
 // ActualStateOfWorldAttacherUpdater defines a set of operations updating the
@@ -346,6 +347,9 @@ type VolumeToMount struct {
 	// ReportedInUse indicates that the volume was successfully added to the
 	// VolumesInUse field in the node's status.
 	ReportedInUse bool
+
+	// ResizeRequested stores time at which volume expansion was requested.
+	UpdatedSize resource.Quantity
 }
 
 // GenerateMsgDetailed returns detailed msgs for volumes to mount

@@ -28,6 +28,7 @@ import (
 	"k8s.io/klog"
 
 	"k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -183,6 +184,7 @@ func (dswp *desiredStateOfWorldPopulator) isPodTerminated(pod *v1.Pod) bool {
 func (dswp *desiredStateOfWorldPopulator) findAndAddNewPods() {
 	// Map unique pod name to outer volume name to MountedVolume.
 	mountedVolumesForPod := make(map[volumetypes.UniquePodName]map[string]cache.MountedVolume)
+
 	if utilfeature.DefaultFeatureGate.Enabled(features.ExpandInUsePersistentVolumes) {
 		for _, mountedVolume := range dswp.actualStateOfWorld.GetMountedVolumes() {
 			mountedVolumes, exist := mountedVolumesForPod[mountedVolume.PodName]
@@ -257,7 +259,7 @@ func (dswp *desiredStateOfWorldPopulator) findAndRemoveDeletedPods() {
 				format.Pod(volumeToMount.Pod))
 			continue
 		}
-		exists, _, _ := dswp.actualStateOfWorld.PodExistsInVolume(volumeToMount.PodName, volumeToMount.VolumeName)
+		exists, _, _ := dswp.actualStateOfWorld.PodExistsInVolume(volumeToMount)
 		if !exists && podExists {
 			klog.V(4).Infof(
 				volumeToMount.GenerateMsgDetailed(fmt.Sprintf("Actual state has not yet has this volume mounted information and pod (%q) still exists in pod manager, skip removing volume from desired state",
@@ -386,10 +388,16 @@ func (dswp *desiredStateOfWorldPopulator) checkVolumeFSResize(
 			"as the volume is mounted as readonly", podVolume.Name, pod.Namespace, pod.Name)
 		return
 	}
-	if volumeRequiresFSResize(pvc, volumeSpec.PersistentVolume) {
-		dswp.actualStateOfWorld.MarkFSResizeRequired(uniqueVolumeName, uniquePodName)
+	if requestedSize, requireResize := volumeRequiresFSResize(pvc, volumeSpec.PersistentVolume); requireResize {
+		dswp.markResizeRequired(uniqueVolumeName, uniquePodName, requestedSize)
 	}
 	processedVolumesForFSResize.Insert(string(uniqueVolumeName))
+}
+
+func (dswp *desiredStateOfWorldPopulator) markResizeRequired(uniqueVolumeName v1.UniqueVolumeName,
+	uniquePodName volumetypes.UniquePodName,
+	requestedSize resource.Quantity) {
+	dswp.desiredStateOfWorld.MarkForNodeExpansion(uniqueVolumeName, uniquePodName, requestedSize)
 }
 
 func mountedReadOnlyByPod(podVolume v1.Volume, pod *v1.Pod) bool {
@@ -433,10 +441,13 @@ func getUniqueVolumeName(
 	return mountedVolume.VolumeName, true
 }
 
-func volumeRequiresFSResize(pvc *v1.PersistentVolumeClaim, pv *v1.PersistentVolume) bool {
+func volumeRequiresFSResize(pvc *v1.PersistentVolumeClaim, pv *v1.PersistentVolume) (resource.Quantity, bool) {
 	capacity := pvc.Status.Capacity[v1.ResourceStorage]
 	requested := pv.Spec.Capacity[v1.ResourceStorage]
-	return requested.Cmp(capacity) > 0
+	if requested.Cmp(capacity) > 0 {
+		return requested, true
+	}
+	return requested, false
 }
 
 // podPreviouslyProcessed returns true if the volumes for this pod have already

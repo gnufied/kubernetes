@@ -25,6 +25,8 @@ import (
 	"sync"
 
 	"k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/klog"
 	"k8s.io/kubernetes/pkg/volume"
 	"k8s.io/kubernetes/pkg/volume/util"
 	"k8s.io/kubernetes/pkg/volume/util/operationexecutor"
@@ -105,6 +107,8 @@ type DesiredStateOfWorld interface {
 	// If a pod with the same name does not exist under the specified
 	// volume, false is returned.
 	VolumeExistsWithSpecName(podName types.UniquePodName, volumeSpecName string) bool
+
+	MarkForNodeExpansion(volumeName v1.UniqueVolumeName, podName types.UniquePodName, requested resource.Quantity)
 }
 
 // VolumeToMount represents a volume that is attached to this node and needs to
@@ -160,6 +164,9 @@ type volumeToMount struct {
 	// reportedInUse indicates that the volume was successfully added to the
 	// VolumesInUse field in the node's status.
 	reportedInUse bool
+
+	// the requested volume size
+	updatedSize resource.Quantity
 }
 
 // The pod object represents a pod that references the underlying volume and
@@ -267,6 +274,38 @@ func (dsw *desiredStateOfWorld) MarkVolumesReportedInUse(
 	}
 }
 
+func (dsw *desiredStateOfWorld) MarkForNodeExpansion(volumeName v1.UniqueVolumeName, podName types.UniquePodName, size resource.Quantity) {
+	dsw.Lock()
+	defer dsw.Unlock()
+
+	vtm, exists := dsw.volumesToMount[volumeName]
+	if !exists {
+		klog.Warningf("MarkForNodeExpansion for volume %s failed as volume not exist", volumeName)
+		return
+	}
+	podObj, exists := vtm.podsToMount[podName]
+	if !exists {
+		klog.Warningf("MarkForNodeExpansion for volume %s failed as pod %s not exist", volumeName, podName)
+		return
+	}
+
+	volumePlugin, err := dsw.volumePluginMgr.FindNodeExpandablePluginBySpec(podObj.volumeSpec)
+	if err != nil || volumePlugin == nil {
+		// Log and continue processing
+		klog.Errorf(
+			"MarkForNodeExpansion failed to find expandable plugin for pod %q volume: %q (volSpecName: %q)",
+			podObj.podName,
+			vtm.volumeName,
+			podObj.volumeSpec.Name())
+		return
+	}
+
+	if volumePlugin.RequiresFSResize() && (size.Cmp(vtm.updatedSize) > 0) {
+		vtm.updatedSize = size
+		dsw.volumesToMount[volumeName] = vtm
+	}
+}
+
 func (dsw *desiredStateOfWorld) DeletePodFromVolume(
 	podName types.UniquePodName, volumeName v1.UniqueVolumeName) {
 	dsw.Lock()
@@ -360,7 +399,8 @@ func (dsw *desiredStateOfWorld) GetVolumesToMount() []VolumeToMount {
 						PluginIsDeviceMountable: volumeObj.pluginIsDeviceMountable,
 						OuterVolumeSpecName:     podObj.outerVolumeSpecName,
 						VolumeGidValue:          volumeObj.volumeGidValue,
-						ReportedInUse:           volumeObj.reportedInUse}})
+						ReportedInUse:           volumeObj.reportedInUse,
+						UpdatedSize:             volumeObj.updatedSize}})
 		}
 	}
 	return volumesToMount
