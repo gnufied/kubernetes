@@ -292,6 +292,25 @@ func ExponentialBackoff(backoff Backoff, condition ConditionFunc) error {
 	return ErrWaitTimeout
 }
 
+// ExponentialBackoffAfter repeats a condition check with exponential backoff after
+// waiting for specified duration.
+//
+// It is similar to ExponentialBackoff except first condition check is only
+// executed *after* waiting for specified duration.
+func ExponentialBackoffAfter(backoff Backoff, condition ConditionFunc) error {
+	for backoff.Steps > 0 {
+		time.Sleep(backoff.Step())
+		if ok, err := condition(); err != nil || ok {
+			return err
+		}
+		if backoff.Steps == 0 {
+			break
+		}
+
+	}
+	return ErrWaitTimeout
+}
+
 // Poll tries a condition func until it returns true, an error, or the timeout
 // is reached.
 //

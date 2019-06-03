@@ -235,21 +235,45 @@ func TestJitterUntilNegativeFactor(t *testing.T) {
 }
 
 func TestExponentialBackoff(t *testing.T) {
+	backoffCommon(t)
+}
+
+func TestExponentialBackoffAfter(t *testing.T) {
+	backoffCommon(t)
+
+	// returns immediately
+	opts := Backoff{Factor: 1.3, Steps: 3, Duration: 3 * time.Second}
+	i := 0
+	callTime := time.Now()
+	err := ExponentialBackoffAfter(opts, func() (bool, error) {
+		i++
+		return true, nil
+	})
+	timeDiff := time.Now().Sub(callTime)
+	if timeDiff < 3*time.Second {
+		t.Errorf("expected 5 second wait time, got : %v", timeDiff)
+	}
+	if err != nil || i != 1 {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func backoffCommon(t *testing.T) {
 	opts := Backoff{Factor: 1.0, Steps: 3}
 
 	// waits up to steps
 	i := 0
-	err := ExponentialBackoff(opts, func() (bool, error) {
+	err := ExponentialBackoffAfter(opts, func() (bool, error) {
 		i++
 		return false, nil
 	})
 	if err != ErrWaitTimeout || i != opts.Steps {
-		t.Errorf("unexpected error: %v", err)
+		t.Errorf("unexpected error:  %+v", err)
 	}
 
 	// returns immediately
 	i = 0
-	err = ExponentialBackoff(opts, func() (bool, error) {
+	err = ExponentialBackoffAfter(opts, func() (bool, error) {
 		i++
 		return true, nil
 	})
@@ -259,7 +283,7 @@ func TestExponentialBackoff(t *testing.T) {
 
 	// returns immediately on error
 	testErr := fmt.Errorf("some other error")
-	err = ExponentialBackoff(opts, func() (bool, error) {
+	err = ExponentialBackoffAfter(opts, func() (bool, error) {
 		return false, testErr
 	})
 	if err != testErr {
@@ -268,7 +292,7 @@ func TestExponentialBackoff(t *testing.T) {
 
 	// invoked multiple times
 	i = 1
-	err = ExponentialBackoff(opts, func() (bool, error) {
+	err = ExponentialBackoffAfter(opts, func() (bool, error) {
 		if i < opts.Steps {
 			i++
 			return false, nil
