@@ -18,10 +18,13 @@ package operationexecutor
 
 import (
 	"fmt"
+	"os"
+	"testing"
+
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_model/go"
+	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/uuid"
@@ -38,8 +41,6 @@ import (
 	csitesting "k8s.io/kubernetes/pkg/volume/csi/testing"
 	"k8s.io/kubernetes/pkg/volume/gcepd"
 	volumetesting "k8s.io/kubernetes/pkg/volume/testing"
-	"os"
-	"testing"
 )
 
 // this method just tests the volume plugin name that's used in CompleteFunc, the same plugin is also used inside the
@@ -115,7 +116,8 @@ func TestOperationGenerator_GenerateUnmapVolumeFunc_PluginName(t *testing.T) {
 		volumePluginMgr, plugin, tmpDir := initTestPlugins(t, tc.probVolumePlugins, tc.pluginName)
 		defer os.RemoveAll(tmpDir)
 
-		operationGenerator := getTestOperationGenerator(volumePluginMgr)
+		vmo := newDummyVolumeOperation()
+		operationGenerator := getTestOperationGenerator(volumePluginMgr, vmo)
 
 		pod := &v1.Pod{ObjectMeta: metav1.ObjectMeta{UID: types.UID(string(uuid.NewUUID()))}}
 		volumeToUnmount := getTestVolumeToUnmount(pod, tc.pvSpec, tc.pluginName)
@@ -166,6 +168,142 @@ func TestOperationGenerator_GenerateUnmapVolumeFunc_PluginName(t *testing.T) {
 	}
 }
 
+func TestOperationGenerator_GenerateExpandInUseVolumeFunc(t *testing.T) {
+	type testcase struct {
+		name                  string
+		isCsiMigrationEnabled bool
+		pluginName            string
+		csiDriverName         string
+		csiMigrationFeature   featuregate.Feature
+		callOnlineExpansion   bool
+		pvSpec                v1.PersistentVolumeSpec
+		probVolumePlugins     []volume.VolumePlugin
+	}
+
+	blockMode := v1.PersistentVolumeBlock
+	fsMode := v1.PersistentVolumeFilesystem
+
+	testcases := []testcase{
+		{
+			name:                  "aws-plugin-csi-migration-on-for-block volume",
+			isCsiMigrationEnabled: true,
+			callOnlineExpansion:   true,
+			pluginName:            plugins.AWSEBSInTreePluginName,
+			csiDriverName:         plugins.AWSEBSDriverName,
+			csiMigrationFeature:   features.CSIMigrationAWS,
+
+			pvSpec: v1.PersistentVolumeSpec{
+				PersistentVolumeSource: v1.PersistentVolumeSource{
+					AWSElasticBlockStore: &v1.AWSElasticBlockStoreVolumeSource{
+						VolumeID: "vol-abcde",
+					},
+				},
+				VolumeMode: &blockMode,
+			},
+			probVolumePlugins: awsebs.ProbeVolumePlugins(),
+		},
+		{
+			name:                  "aws-plugin-csi-migration-disabled-block-volume",
+			isCsiMigrationEnabled: false,
+			callOnlineExpansion:   false,
+			pluginName:            plugins.AWSEBSInTreePluginName,
+			csiMigrationFeature:   features.CSIMigrationAWS,
+			pvSpec: v1.PersistentVolumeSpec{
+				PersistentVolumeSource: v1.PersistentVolumeSource{
+					AWSElasticBlockStore: &v1.AWSElasticBlockStoreVolumeSource{
+						VolumeID: "vol-1234",
+					},
+				},
+				VolumeMode: &blockMode,
+			},
+			probVolumePlugins: awsebs.ProbeVolumePlugins(),
+		},
+		{
+			name:                  "aws-plugin-csi-migration-disabled-fs-volume",
+			isCsiMigrationEnabled: false,
+			callOnlineExpansion:   true,
+			pluginName:            plugins.AWSEBSInTreePluginName,
+			csiMigrationFeature:   features.CSIMigrationAWS,
+			pvSpec: v1.PersistentVolumeSpec{
+				PersistentVolumeSource: v1.PersistentVolumeSource{
+					AWSElasticBlockStore: &v1.AWSElasticBlockStoreVolumeSource{
+						VolumeID: "vol-1234",
+					},
+				},
+				VolumeMode: &fsMode,
+			},
+			probVolumePlugins: awsebs.ProbeVolumePlugins(),
+		},
+		{
+			name:                  "regular-csi-plugin-block-volume",
+			isCsiMigrationEnabled: false,
+			callOnlineExpansion:   true,
+			pluginName:            "kubernetes.io/csi",
+			csiMigrationFeature:   features.CSIMigration,
+			pvSpec: v1.PersistentVolumeSpec{
+				PersistentVolumeSource: v1.PersistentVolumeSource{
+					CSI: &v1.CSIPersistentVolumeSource{
+						Driver:       plugins.AWSEBSDriverName,
+						VolumeHandle: "vol-xyze",
+					},
+				},
+				VolumeMode: &blockMode,
+			},
+			probVolumePlugins: []volume.VolumePlugin{},
+		},
+		{
+			name:                  "regular-csi-plugin-fs-volume",
+			isCsiMigrationEnabled: false,
+			callOnlineExpansion:   true,
+			pluginName:            "kubernetes.io/csi",
+			csiMigrationFeature:   features.CSIMigration,
+			pvSpec: v1.PersistentVolumeSpec{
+				PersistentVolumeSource: v1.PersistentVolumeSource{
+					CSI: &v1.CSIPersistentVolumeSource{
+						Driver:       plugins.AWSEBSDriverName,
+						VolumeHandle: "vol-xyze",
+					},
+				},
+				VolumeMode: &fsMode,
+			},
+			probVolumePlugins: []volume.VolumePlugin{},
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.CSIMigration, tc.isCsiMigrationEnabled)()
+			defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, tc.csiMigrationFeature, tc.isCsiMigrationEnabled)()
+
+			volumePluginMgr, _, tmpDir := initTestPlugins(t, tc.probVolumePlugins, tc.pluginName)
+			defer os.RemoveAll(tmpDir)
+
+			vmo := newDummyVolumeOperation()
+			ogInterface := getTestOperationGenerator(volumePluginMgr, vmo)
+
+			pod := &v1.Pod{ObjectMeta: metav1.ObjectMeta{UID: types.UID(string(uuid.NewUUID()))}}
+			volumeToExpand := getTestVolumeToMount(pod, tc.pvSpec, tc.pluginName)
+			asw := &dummyActualStatOfWorld{}
+			expandVolumeFunc, e := ogInterface.GenerateExpandInUseVolumeFunc(volumeToExpand, asw)
+			if e != nil {
+				t.Fatalf("Error occurred while generating expandInUseVolumeFunc: %v", e)
+			}
+
+			e1, e2 := expandVolumeFunc.OperationFunc()
+			if e1 != nil || e2 != nil {
+				t.Fatalf("unable to call volume expansion: %v, %v", e1, e2)
+			}
+
+			_, onlineExpansionCalled := vmo.calledFuncs["node_expand_volume"]
+			fmt.Printf("called funcs : %+v\n", vmo.calledFuncs)
+			if onlineExpansionCalled != tc.callOnlineExpansion {
+				t.Fatalf("expected callOnlineExpansion to be %v got %v", tc.callOnlineExpansion, onlineExpansionCalled)
+			}
+		})
+
+	}
+}
+
 func findMetricWithNameAndLabels(metricFamilyName string, labelFilter map[string]string) *io_prometheus_client.Metric {
 	metricFamily := getMetricFamily(metricFamilyName)
 	if metricFamily == nil {
@@ -200,17 +338,18 @@ func isLabelsMatchWithMetric(labelFilter map[string]string, metric *io_prometheu
 	return true
 }
 
-func getTestOperationGenerator(volumePluginMgr *volume.VolumePluginMgr) OperationGenerator {
+func getTestOperationGenerator(volumePluginMgr *volume.VolumePluginMgr, vmo VolumeOperationInterface) OperationGenerator {
 	fakeKubeClient := fakeclient.NewSimpleClientset()
 	fakeRecorder := &record.FakeRecorder{}
 	fakeHandler := volumetesting.NewBlockVolumePathHandler()
-	operationGenerator := NewOperationGenerator(
-		fakeKubeClient,
-		volumePluginMgr,
-		fakeRecorder,
-		false,
-		fakeHandler)
-	return operationGenerator
+	return &operationGenerator{
+		kubeClient:                       fakeKubeClient,
+		volumePluginMgr:                  volumePluginMgr,
+		recorder:                         fakeRecorder,
+		checkNodeCapabilitiesBeforeMount: false,
+		volumeOperation:                  vmo,
+		blkUtil:                          fakeHandler,
+	}
 }
 
 func getTestVolumeToUnmount(pod *v1.Pod, pvSpec v1.PersistentVolumeSpec, pluginName string) MountedVolume {
@@ -226,6 +365,23 @@ func getTestVolumeToUnmount(pod *v1.Pod, pvSpec v1.PersistentVolumeSpec, pluginN
 		VolumeSpec: volumeSpec,
 	}
 	return volumeToUnmount
+}
+
+func getTestVolumeToMount(pod *v1.Pod, pvSpec v1.PersistentVolumeSpec, pluginName string) VolumeToMount {
+	volumeSpec := &volume.Spec{
+		PersistentVolume: &v1.PersistentVolume{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "pd-volume",
+			},
+			Spec: pvSpec,
+		},
+	}
+	volumeToMount := VolumeToMount{
+		VolumeName: v1.UniqueVolumeName("pd-volume"),
+		Pod:        pod,
+		VolumeSpec: volumeSpec,
+	}
+	return volumeToMount
 }
 
 func getMetricFamily(metricFamilyName string) *io_prometheus_client.MetricFamily {

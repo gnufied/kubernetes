@@ -383,16 +383,6 @@ func (dswp *desiredStateOfWorldPopulator) checkVolumeFSResize(
 		// or online resize in subsequent loop(after we confirm it has been mounted).
 		return
 	}
-	fsVolume, err := util.CheckVolumeModeFilesystem(volumeSpec)
-	if err != nil {
-		klog.Errorf("Check volume mode failed for volume %s(OuterVolumeSpecName %s): %v",
-			uniqueVolumeName, podVolume.Name, err)
-		return
-	}
-	if !fsVolume {
-		klog.V(5).Infof("Block mode volume needn't to check file system resize request")
-		return
-	}
 	if processedVolumesForFSResize.Has(string(uniqueVolumeName)) {
 		// File system resize operation is a global operation for volume,
 		// so we only need to check it once if more than one pod use it.

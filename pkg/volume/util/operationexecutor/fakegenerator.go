@@ -113,3 +113,54 @@ func (f *fakeOGCounter) recordFuncCall(name string) volumetypes.GeneratedOperati
 	}
 	return ops
 }
+
+type dummyVolumeOperation struct {
+	// calledFuncs stores name and count of functions
+	calledFuncs map[string]int
+}
+
+func newDummyVolumeOperation() *dummyVolumeOperation {
+	return &dummyVolumeOperation{
+		calledFuncs: map[string]int{},
+	}
+}
+
+func (dmvo *dummyVolumeOperation) NodeExpandVolume(_ VolumeToMount, _ volume.NodeResizeOptions) (bool, error) {
+	dmvo.recordFuncCall("node_expand_volume")
+	return true, nil
+}
+
+func (dmvo *dummyVolumeOperation) recordFuncCall(name string) {
+	if _, ok := dmvo.calledFuncs[name]; ok {
+		dmvo.calledFuncs[name]++
+		return
+	}
+	dmvo.calledFuncs[name] = 1
+}
+
+type dummyActualStatOfWorld struct {
+	nodeName        types.NodeName
+	attachedVolumes map[v1.UniqueVolumeName]bool
+}
+
+var _ ActualStateOfWorldMounterUpdater = &dummyActualStatOfWorld{}
+
+func (asw *dummyActualStatOfWorld) MarkVolumeAsMounted(podName volumetypes.UniquePodName, podUID types.UID, volumeName v1.UniqueVolumeName, mounter volume.Mounter, blockVolumeMapper volume.BlockVolumeMapper, outerVolumeSpecName string, volumeGidValue string, volumeSpec *volume.Spec) error {
+	return nil
+}
+
+func (asw *dummyActualStatOfWorld) MarkVolumeAsUnmounted(podName volumetypes.UniquePodName, volumeName v1.UniqueVolumeName) error {
+	return nil
+}
+
+func (asw *dummyActualStatOfWorld) MarkDeviceAsMounted(volumeName v1.UniqueVolumeName, devicePath, deviceMountPath string) error {
+	return nil
+}
+
+func (asw *dummyActualStatOfWorld) MarkDeviceAsUnmounted(volumeName v1.UniqueVolumeName) error {
+	return nil
+}
+
+func (asw *dummyActualStatOfWorld) MarkVolumeAsResized(podName volumetypes.UniquePodName, volumeName v1.UniqueVolumeName) error {
+	return nil
+}
