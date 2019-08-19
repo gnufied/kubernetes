@@ -1633,6 +1633,16 @@ func (og *operationGenerator) GenerateExpandInUseVolumeFunc(
 			return volumeToMount.GenerateError("VolumeFSResize.FindPluginBySpec failed", err)
 		}
 
+		fsVolume, err := util.CheckVolumeModeFilesystem(volumeToMount.VolumeSpec)
+		if err != nil {
+			return volumeToMount.GenerateError("VolumeFSResize.CheckVolumeModeFilesystem failed", err)
+		}
+
+		// we do not need to fs resize non-csi block volumes
+		if volumePlugin.GetPluginName() != csi.CSIPluginName && !fsVolume {
+			return nil, nil
+		}
+
 		var resizeDone bool
 		var simpleErr, detailedErr error
 		resizeOptions := volume.NodeResizeOptions{
