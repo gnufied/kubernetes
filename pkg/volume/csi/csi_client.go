@@ -28,6 +28,8 @@ import (
 
 	csipbv1 "github.com/container-storage-interface/spec/lib/go/csi"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	api "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	utilversion "k8s.io/apimachinery/pkg/util/version"
@@ -35,6 +37,7 @@ import (
 	"k8s.io/klog"
 	"k8s.io/kubernetes/pkg/volume"
 	csipbv0 "k8s.io/kubernetes/pkg/volume/csi/csiv0"
+	volumetypes "k8s.io/kubernetes/pkg/volume/util/types"
 )
 
 type csiClient interface {
@@ -275,8 +278,12 @@ func (c *csiDriverClient) NodePublishVolume(
 	if targetPath == "" {
 		return errors.New("missing target path")
 	}
+
+	nodePublishCalled := false
+	var err error
 	if c.nodeV1ClientCreator != nil {
-		return c.nodePublishVolumeV1(
+		nodePublishCalled = true
+		err = c.nodePublishVolumeV1(
 			ctx,
 			volID,
 			readOnly,
@@ -290,7 +297,8 @@ func (c *csiDriverClient) NodePublishVolume(
 			mountOptions,
 		)
 	} else if c.nodeV0ClientCreator != nil {
-		return c.nodePublishVolumeV0(
+		nodePublishCalled = true
+		err = c.nodePublishVolumeV0(
 			ctx,
 			volID,
 			readOnly,
@@ -305,8 +313,17 @@ func (c *csiDriverClient) NodePublishVolume(
 		)
 	}
 
-	return fmt.Errorf("failed to call NodePublishVolume. Both nodeV1ClientCreator and nodeV0ClientCreator are nil")
+	if nodePublishCalled && err == nil {
+		return nil
+	}
 
+	if err != nil {
+		if isFinalError(err) {
+			return err
+		}
+		return volumetypes.NewOperationTimedOutError(err.Error())
+	}
+	return fmt.Errorf("failed to call NodePublishVolume. Both nodeV1ClientCreator and nodeV0ClientCreator are nil")
 }
 
 func (c *csiDriverClient) NodeExpandVolume(ctx context.Context, volumeID, volumePath string, newSize resource.Quantity) (resource.Quantity, error) {
@@ -518,12 +535,26 @@ func (c *csiDriverClient) NodeStageVolume(ctx context.Context,
 		return errors.New("missing staging target path")
 	}
 
-	if c.nodeV1ClientCreator != nil {
-		return c.nodeStageVolumeV1(ctx, volID, publishContext, stagingTargetPath, fsType, accessMode, secrets, volumeContext, mountOptions)
-	} else if c.nodeV0ClientCreator != nil {
-		return c.nodeStageVolumeV0(ctx, volID, publishContext, stagingTargetPath, fsType, accessMode, secrets, volumeContext, mountOptions)
-	}
+	var err error
+	nodeStageCalled := false
 
+	if c.nodeV1ClientCreator != nil {
+		nodeStageCalled = true
+		err = c.nodeStageVolumeV1(ctx, volID, publishContext, stagingTargetPath, fsType, accessMode, secrets, volumeContext, mountOptions)
+	} else if c.nodeV0ClientCreator != nil {
+		nodeStageCalled = true
+		err = c.nodeStageVolumeV0(ctx, volID, publishContext, stagingTargetPath, fsType, accessMode, secrets, volumeContext, mountOptions)
+	}
+	// if there is no error and noStage was called return nil
+	if err == nil && nodeStageCalled {
+		return nil
+	}
+	if err != nil {
+		if isFinalError(err) {
+			return err
+		}
+		return volumetypes.NewOperationTimedOutError(err.Error())
+	}
 	return fmt.Errorf("failed to call NodeStageVolume. Both nodeV1ClientCreator and nodeV0ClientCreator are nil")
 }
 
@@ -948,4 +979,28 @@ func (c *csiDriverClient) nodeGetVolumeStatsV1(
 
 	}
 	return metrics, nil
+}
+
+func isFinalError(err error) bool {
+	// Sources:
+	// https://github.com/grpc/grpc/blob/master/doc/statuscodes.md
+	// https://github.com/container-storage-interface/spec/blob/master/spec.md
+	st, ok := status.FromError(err)
+	if !ok {
+		// This is not gRPC error. The operation must have failed before gRPC
+		// method was called, otherwise we would get gRPC error.
+		// We don't know if any previous CreateVolume is in progress, be on the safe side.
+		return false
+	}
+	switch st.Code() {
+	case codes.Canceled, // gRPC: Client Application cancelled the request
+		codes.DeadlineExceeded,  // gRPC: Timeout
+		codes.Unavailable,       // gRPC: Server shutting down, TCP connection broken - previous CreateVolume() may be still in progress.
+		codes.ResourceExhausted, // gRPC: Server temporarily out of resources - previous CreateVolume() may be still in progress.
+		codes.Aborted:           // CSI: Operation pending for volume
+		return false
+	}
+	// All other errors mean that provisioning either did not
+	// even start or failed. It is for sure not in progress.
+	return true
 }
