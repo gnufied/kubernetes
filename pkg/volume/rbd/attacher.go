@@ -27,6 +27,7 @@ import (
 	"k8s.io/kubernetes/pkg/util/mount"
 	"k8s.io/kubernetes/pkg/volume"
 	volutil "k8s.io/kubernetes/pkg/volume/util"
+	volumetypes "k8s.io/kubernetes/pkg/volume/util/types"
 )
 
 // NewAttacher implements AttachableVolumePlugin.NewAttacher.
@@ -181,6 +182,11 @@ func (attacher *rbdAttacher) MountDevice(spec *volume.Spec, devicePath string, d
 	}
 	klog.V(3).Infof("rbd: successfully mount device %s at %s (fstype: %s)", devicePath, deviceMountPath, fstype)
 	return nil
+}
+
+func (attacher *rbdAttacher) MountDeviceWithStatusTracking(spec *volume.Spec, devicePath string, deviceMountPath string) (volumetypes.OperationStatus, error) {
+	err := attacher.MountDevice(spec, devicePath, deviceMountPath)
+	return volumetypes.OperationFinished, err
 }
 
 // rbdDetacher implements volume.Detacher interface.

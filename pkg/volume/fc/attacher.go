@@ -31,6 +31,7 @@ import (
 	"k8s.io/kubernetes/pkg/util/mount"
 	"k8s.io/kubernetes/pkg/volume"
 	volumeutil "k8s.io/kubernetes/pkg/volume/util"
+	volumetypes "k8s.io/kubernetes/pkg/volume/util/types"
 )
 
 type fcAttacher struct {
@@ -128,6 +129,11 @@ func (attacher *fcAttacher) MountDevice(spec *volume.Spec, devicePath string, de
 		}
 	}
 	return nil
+}
+
+func (attacher *fcAttacher) MountDeviceWithStatusTracking(spec *volume.Spec, devicePath, deviceMountPath string) (volumetypes.OperationStatus, error) {
+	err := attacher.MountDevice(spec, devicePath, deviceMountPath)
+	return volumetypes.OperationFinished, err
 }
 
 type fcDetacher struct {

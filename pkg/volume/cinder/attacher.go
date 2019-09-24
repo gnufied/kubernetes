@@ -33,6 +33,7 @@ import (
 	"k8s.io/kubernetes/pkg/util/mount"
 	"k8s.io/kubernetes/pkg/volume"
 	volumeutil "k8s.io/kubernetes/pkg/volume/util"
+	volumetypes "k8s.io/kubernetes/pkg/volume/util/types"
 )
 
 type cinderDiskAttacher struct {
@@ -300,6 +301,11 @@ func (attacher *cinderDiskAttacher) MountDevice(spec *volume.Spec, devicePath st
 		}
 	}
 	return nil
+}
+
+func (attacher *cinderDiskAttacher) MountDeviceWithStatusTracking(spec *volume.Spec, devicePath string, deviceMountPath string) (volumetypes.OperationStatus, error) {
+	err := attacher.MountDevice(spec, devicePath, deviceMountPath)
+	return volumetypes.OperationFinished, err
 }
 
 type cinderDiskDetacher struct {
