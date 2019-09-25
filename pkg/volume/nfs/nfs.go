@@ -29,6 +29,7 @@ import (
 	"k8s.io/kubernetes/pkg/volume"
 	"k8s.io/kubernetes/pkg/volume/util"
 	"k8s.io/kubernetes/pkg/volume/util/recyclerclient"
+	volumetypes "k8s.io/kubernetes/pkg/volume/util/types"
 	utilstrings "k8s.io/utils/strings"
 )
 
@@ -242,6 +243,11 @@ func (nfsMounter *nfsMounter) GetAttributes() volume.Attributes {
 // SetUp attaches the disk and bind mounts to the volume path.
 func (nfsMounter *nfsMounter) SetUp(mounterArgs volume.MounterArgs) error {
 	return nfsMounter.SetUpAt(nfsMounter.GetPath(), mounterArgs)
+}
+
+func (nfsMounter *nfsMounter) SetUpWithStatusTracking(mounterArgs volume.MounterArgs) (volumetypes.OperationStatus, error) {
+	err := nfsMounter.SetUp(mounterArgs)
+	return volumetypes.OperationFinished, err
 }
 
 func (nfsMounter *nfsMounter) SetUpAt(dir string, mounterArgs volume.MounterArgs) error {

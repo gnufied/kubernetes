@@ -28,6 +28,7 @@ import (
 	"k8s.io/kubernetes/pkg/util/mount"
 	"k8s.io/kubernetes/pkg/volume"
 	"k8s.io/kubernetes/pkg/volume/util"
+	volumetypes "k8s.io/kubernetes/pkg/volume/util/types"
 )
 
 type azureDiskMounter struct {
@@ -66,6 +67,11 @@ func (m *azureDiskMounter) CanMount() error {
 
 func (m *azureDiskMounter) SetUp(mounterArgs volume.MounterArgs) error {
 	return m.SetUpAt(m.GetPath(), mounterArgs)
+}
+
+func (m *azureDiskMounter) SetUpWithStatusTracking(mounterArgs volume.MounterArgs) (volumetypes.OperationStatus, error) {
+	err := m.SetUp(mounterArgs)
+	return volumetypes.OperationFinished, err
 }
 
 func (m *azureDiskMounter) GetPath() string {

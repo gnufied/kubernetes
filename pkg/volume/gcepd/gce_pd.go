@@ -38,6 +38,7 @@ import (
 	"k8s.io/kubernetes/pkg/util/mount"
 	"k8s.io/kubernetes/pkg/volume"
 	"k8s.io/kubernetes/pkg/volume/util"
+	volumetypes "k8s.io/kubernetes/pkg/volume/util/types"
 	gcecloud "k8s.io/legacy-cloud-providers/gce"
 	utilstrings "k8s.io/utils/strings"
 )
@@ -374,6 +375,12 @@ func (b *gcePersistentDiskMounter) CanMount() error {
 // SetUp bind mounts the disk global mount to the volume path.
 func (b *gcePersistentDiskMounter) SetUp(mounterArgs volume.MounterArgs) error {
 	return b.SetUpAt(b.GetPath(), mounterArgs)
+}
+
+// SetUp bind mounts the disk global mount to the volume path.
+func (b *gcePersistentDiskMounter) SetUpWithStatusTracking(mounterArgs volume.MounterArgs) (volumetypes.OperationStatus, error) {
+	err := b.SetUp(mounterArgs)
+	return volumetypes.OperationFinished, err
 }
 
 // SetUp bind mounts the disk global mount to the give volume path.

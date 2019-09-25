@@ -33,6 +33,7 @@ import (
 	"k8s.io/kubernetes/pkg/util/mount"
 	"k8s.io/kubernetes/pkg/volume"
 	"k8s.io/kubernetes/pkg/volume/util"
+	volumetypes "k8s.io/kubernetes/pkg/volume/util/types"
 	utilstrings "k8s.io/utils/strings"
 )
 
@@ -79,6 +80,11 @@ func (v *sioVolume) CanMount() error {
 
 func (v *sioVolume) SetUp(mounterArgs volume.MounterArgs) error {
 	return v.SetUpAt(v.GetPath(), mounterArgs)
+}
+
+func (v *sioVolume) SetUpWithStatusTracking(mounterArgs volume.MounterArgs) (volumetypes.OperationStatus, error) {
+	err := v.SetUp(mounterArgs)
+	return volumetypes.OperationFinished, err
 }
 
 // SetUp bind mounts the disk global mount to the volume path.

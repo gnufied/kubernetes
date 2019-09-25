@@ -31,6 +31,7 @@ import (
 	"k8s.io/kubernetes/pkg/volume"
 	volumeutil "k8s.io/kubernetes/pkg/volume/util"
 	"k8s.io/kubernetes/pkg/volume/util/fsquota"
+	volumetypes "k8s.io/kubernetes/pkg/volume/util/types"
 	utilstrings "k8s.io/utils/strings"
 )
 
@@ -197,6 +198,11 @@ func (ed *emptyDir) CanMount() error {
 // SetUp creates new directory.
 func (ed *emptyDir) SetUp(mounterArgs volume.MounterArgs) error {
 	return ed.SetUpAt(ed.GetPath(), mounterArgs)
+}
+
+func (ed *emptyDir) SetUpWithStatusTracking(mounterArgs volume.MounterArgs) (volumetypes.OperationStatus, error) {
+	err := ed.SetUp(mounterArgs)
+	return volumetypes.OperationFinished, err
 }
 
 // SetUpAt creates new directory.

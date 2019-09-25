@@ -31,6 +31,7 @@ import (
 	"k8s.io/kubernetes/pkg/util/mount"
 	"k8s.io/kubernetes/pkg/volume"
 	"k8s.io/kubernetes/pkg/volume/util"
+	volumetypes "k8s.io/kubernetes/pkg/volume/util/types"
 	utilstrings "k8s.io/utils/strings"
 )
 
@@ -224,6 +225,12 @@ func (cephfsVolume *cephfsMounter) CanMount() error {
 // SetUp attaches the disk and bind mounts to the volume path.
 func (cephfsVolume *cephfsMounter) SetUp(mounterArgs volume.MounterArgs) error {
 	return cephfsVolume.SetUpAt(cephfsVolume.GetPath(), mounterArgs)
+}
+
+// SetUp attaches the disk and bind mounts to the volume path.
+func (cephfsVolume *cephfsMounter) SetUpWithStatusTracking(mounterArgs volume.MounterArgs) (volumetypes.OperationStatus, error) {
+	err := cephfsVolume.SetUp(mounterArgs)
+	return volumetypes.OperationFinished, err
 }
 
 // SetUpAt attaches the disk and bind mounts to the volume path.

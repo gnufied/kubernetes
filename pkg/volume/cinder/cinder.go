@@ -36,6 +36,7 @@ import (
 	"k8s.io/kubernetes/pkg/util/mount"
 	"k8s.io/kubernetes/pkg/volume"
 	"k8s.io/kubernetes/pkg/volume/util"
+	volumetypes "k8s.io/kubernetes/pkg/volume/util/types"
 	"k8s.io/legacy-cloud-providers/openstack"
 	"k8s.io/utils/keymutex"
 	utilstrings "k8s.io/utils/strings"
@@ -395,6 +396,11 @@ func (b *cinderVolumeMounter) CanMount() error {
 
 func (b *cinderVolumeMounter) SetUp(mounterArgs volume.MounterArgs) error {
 	return b.SetUpAt(b.GetPath(), mounterArgs)
+}
+
+func (b *cinderVolumeMounter) SetUpWithStatusTracking(mounterArgs volume.MounterArgs) (volumetypes.OperationStatus, error) {
+	err := b.SetUp(mounterArgs)
+	return volumetypes.OperationFinished, err
 }
 
 // SetUp bind mounts to the volume path.
