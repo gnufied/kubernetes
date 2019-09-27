@@ -279,10 +279,9 @@ func (c *csiDriverClient) NodePublishVolume(
 		return errors.New("missing target path")
 	}
 
-	nodePublishCalled := false
 	var err error
-	if c.nodeV1ClientCreator != nil {
-		nodePublishCalled = true
+	switch {
+	case c.nodeV1ClientCreator != nil:
 		err = c.nodePublishVolumeV1(
 			ctx,
 			volID,
@@ -296,8 +295,7 @@ func (c *csiDriverClient) NodePublishVolume(
 			fsType,
 			mountOptions,
 		)
-	} else if c.nodeV0ClientCreator != nil {
-		nodePublishCalled = true
+	case c.nodeV0ClientCreator != nil:
 		err = c.nodePublishVolumeV0(
 			ctx,
 			volID,
@@ -311,10 +309,8 @@ func (c *csiDriverClient) NodePublishVolume(
 			fsType,
 			mountOptions,
 		)
-	}
-
-	if nodePublishCalled && err == nil {
-		return nil
+	default:
+		return fmt.Errorf("failed to call NodePublishVolume. Both nodeV1ClientCreator and nodeV0ClientCreator are nil")
 	}
 
 	if err != nil {
@@ -323,7 +319,7 @@ func (c *csiDriverClient) NodePublishVolume(
 		}
 		return volumetypes.NewOperationTimedOutError(err.Error())
 	}
-	return fmt.Errorf("failed to call NodePublishVolume. Both nodeV1ClientCreator and nodeV0ClientCreator are nil")
+	return nil
 }
 
 func (c *csiDriverClient) NodeExpandVolume(ctx context.Context, volumeID, volumePath string, newSize resource.Quantity) (resource.Quantity, error) {
