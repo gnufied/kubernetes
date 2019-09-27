@@ -532,18 +532,13 @@ func (c *csiDriverClient) NodeStageVolume(ctx context.Context,
 	}
 
 	var err error
-	nodeStageCalled := false
-
-	if c.nodeV1ClientCreator != nil {
-		nodeStageCalled = true
+	switch {
+	case c.nodeV1ClientCreator != nil:
 		err = c.nodeStageVolumeV1(ctx, volID, publishContext, stagingTargetPath, fsType, accessMode, secrets, volumeContext, mountOptions)
-	} else if c.nodeV0ClientCreator != nil {
-		nodeStageCalled = true
+	case c.nodeV0ClientCreator != nil:
 		err = c.nodeStageVolumeV0(ctx, volID, publishContext, stagingTargetPath, fsType, accessMode, secrets, volumeContext, mountOptions)
-	}
-	// if there is no error and noStage was called return nil
-	if err == nil && nodeStageCalled {
-		return nil
+	default:
+		return fmt.Errorf("failed to call NodeStageVolume. Both nodeV1ClientCreator and nodeV0ClientCreator are nil")
 	}
 	if err != nil {
 		if isFinalError(err) {
@@ -551,7 +546,7 @@ func (c *csiDriverClient) NodeStageVolume(ctx context.Context,
 		}
 		return volumetypes.NewOperationTimedOutError(err.Error())
 	}
-	return fmt.Errorf("failed to call NodeStageVolume. Both nodeV1ClientCreator and nodeV0ClientCreator are nil")
+	return nil
 }
 
 func (c *csiDriverClient) nodeStageVolumeV1(
