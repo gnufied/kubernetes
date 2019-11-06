@@ -985,7 +985,7 @@ func (fv *FakeVolume) GetDeviceMountPath(spec *Spec) (string, error) {
 	return "", nil
 }
 
-func (fv *FakeVolume) MountDevice(spec *Spec, devicePath string, deviceMountPath string) error {
+func (fv *FakeVolume) mountDeviceInternal(spec *Spec, devicePath string, deviceMountPath string) error {
 	fv.Lock()
 	defer fv.Unlock()
 	if spec.Name() == TimeoutOnMountDeviceVolumeName {
@@ -1013,8 +1013,8 @@ func (fv *FakeVolume) MountDevice(spec *Spec, devicePath string, deviceMountPath
 	return nil
 }
 
-func (fv *FakeVolume) MountDeviceWithStatusTracking(spec *Spec, devicePath string, deviceMountPath string) (volumetypes.OperationStatus, error) {
-	err := fv.MountDevice(spec, devicePath, deviceMountPath)
+func (fv *FakeVolume) MountDevice(spec *Spec, devicePath string, deviceMountPath string) (volumetypes.OperationStatus, error) {
+	err := fv.mountDeviceInternal(spec, devicePath, deviceMountPath)
 	if volumetypes.IsOperationTimeOutError(err) {
 		return volumetypes.OperationInProgress, err
 	}
