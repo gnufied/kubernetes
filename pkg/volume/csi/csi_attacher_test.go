@@ -1192,7 +1192,7 @@ func TestAttacherMountDevice(t *testing.T) {
 			}
 
 			// Run
-			exitStatus, err := csiAttacher.MountDeviceWithStatusTracking(tc.spec, tc.devicePath, tc.deviceMountPath)
+			exitStatus, err := csiAttacher.MountDevice(tc.spec, tc.devicePath, tc.deviceMountPath)
 
 			// Verify
 			if err != nil {
