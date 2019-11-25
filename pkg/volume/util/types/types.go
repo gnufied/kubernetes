@@ -94,6 +94,51 @@ func IsOperationTimeOutError(err error) bool {
 	return false
 }
 
+// TransientOperationFailure indicates operation failed with a transient error
+// and may fix itself when retried.
+type TransientOperationFailure struct {
+	msg string
+}
+
+func (err *TransientOperationFailure) Error() string {
+	return err.msg
+}
+
+func NewTransientOperationFailure(msg string) *TransientOperationFailure {
+	return &TransientOperationFailure{msg: msg}
+}
+
+// NonFinalOperationFailure indicates operation failed with a non-final error
+// and operation may be in-progress in background.
+type NonFinalOperationFailure struct {
+	msg string
+}
+
+func (err *NonFinalOperationFailure) Error() string {
+	return err.msg
+}
+
+func NewNonFinalOperationFailure(msg string) *NonFinalOperationFailure {
+	return &NonFinalOperationFailure{msg: msg}
+}
+
+func IsOperationFinishedError(err error) bool {
+	if _, ok := err.(*NonFinalOperationFailure); ok {
+		return false
+	}
+	if _, ok := err.(*TransientOperationFailure); ok {
+		return false
+	}
+	return true
+}
+
+func IsNonFinalError(err error) bool {
+	if _, ok := err.(*NonFinalOperationFailure); ok {
+		return true
+	}
+	return false
+}
+
 const (
 	// VolumeResizerKey is key that will be used to store resizer used
 	// for resizing PVC. The generated key/value pair will be added
