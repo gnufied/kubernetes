@@ -49,7 +49,6 @@ import (
 	. "k8s.io/kubernetes/pkg/volume"
 	"k8s.io/kubernetes/pkg/volume/util"
 	"k8s.io/kubernetes/pkg/volume/util/hostutil"
-	"k8s.io/kubernetes/pkg/volume/util/operationexecutor"
 	"k8s.io/kubernetes/pkg/volume/util/recyclerclient"
 	"k8s.io/kubernetes/pkg/volume/util/subpath"
 	volumetypes "k8s.io/kubernetes/pkg/volume/util/types"
@@ -89,6 +88,14 @@ const (
 	SuccessAndTimeoutDeviceName = "success-and-timeout-device-name"
 	// SuccessAndFailOnMountDeviceName will cause first mount operation to succeed but subsequent attempts to fail
 	SuccessAndFailOnMountDeviceName = "success-and-failed-mount-device-name"
+
+	deviceNotMounted     = "deviceNotMounted"
+	deviceMountUncertain = "deviceMountUncertain"
+	deviceMounted        = "deviceMounted"
+
+	volumeNotMounted     = "volumeNotMounted"
+	volumeMountUncertain = "volumeMountUncertain"
+	volumeMounted        = "volumeMounted"
 )
 
 // fakeVolumeHost is useful for testing volume plugins.
@@ -407,8 +414,8 @@ func (plugin *FakeVolumePlugin) getFakeVolume(list *[]*FakeVolume) *FakeVolume {
 		UnmountDeviceHook: plugin.UnmountDeviceHook,
 	}
 	volume.VolumesAttached = make(map[string]types.NodeName)
-	volume.DeviceMountState = make(map[string]operationexecutor.DeviceMountState)
-	volume.VolumeMountState = make(map[string]operationexecutor.VolumeMountState)
+	volume.DeviceMountState = make(map[string]string)
+	volume.VolumeMountState = make(map[string]string)
 	*list = append(*list, volume)
 	return volume
 }
@@ -811,8 +818,8 @@ type FakeVolume struct {
 	Plugin  *FakeVolumePlugin
 	MetricsNil
 	VolumesAttached  map[string]types.NodeName
-	DeviceMountState map[string]operationexecutor.DeviceMountState
-	VolumeMountState map[string]operationexecutor.VolumeMountState
+	DeviceMountState map[string]string
+	VolumeMountState map[string]string
 
 	// Add callbacks as needed
 	WaitForAttachHook func(spec *Spec, devicePath string, pod *v1.Pod, spectimeout time.Duration) (string, error)
@@ -870,22 +877,22 @@ func (fv *FakeVolume) SetUp(mounterArgs MounterArgs) error {
 
 func (fv *FakeVolume) setupInternal(mounterArgs MounterArgs) error {
 	if fv.VolName == TimeoutOnSetupVolumeName {
-		fv.VolumeMountState[fv.VolName] = operationexecutor.VolumeMountUncertain
-		return volumetypes.NonFinalOperationFailure("time out on setup")
+		fv.VolumeMountState[fv.VolName] = volumeMountUncertain
+		return volumetypes.NewNonFinalOperationFailure("time out on setup")
 	}
 
 	if fv.VolName == FailOnSetupVolumeName {
-		fv.VolumeMountState[fv.VolName] = operationexecutor.VolumeNotMounted
+		fv.VolumeMountState[fv.VolName] = volumeNotMounted
 		return fmt.Errorf("mounting volume failed")
 	}
 
 	if fv.VolName == TimeoutAndFailOnSetupVolumeName {
 		_, ok := fv.VolumeMountState[fv.VolName]
 		if !ok {
-			fv.VolumeMountState[fv.VolName] = operationexecutor.VolumeMountUncertain
-			return volumetypes.NonFinalOperationFailure("time out on setup")
+			fv.VolumeMountState[fv.VolName] = volumeMountUncertain
+			return volumetypes.NewNonFinalOperationFailure("time out on setup")
 		}
-		fv.VolumeMountState[fv.VolName] = operationexecutor.VolumeNotMounted
+		fv.VolumeMountState[fv.VolName] = volumeNotMounted
 		return fmt.Errorf("mounting volume failed")
 
 	}
@@ -893,7 +900,7 @@ func (fv *FakeVolume) setupInternal(mounterArgs MounterArgs) error {
 	if fv.VolName == SuccessAndFailOnSetupVolumeName {
 		_, ok := fv.VolumeMountState[fv.VolName]
 		if ok {
-			fv.VolumeMountState[fv.VolName] = operationexecutor.VolumeNotMounted
+			fv.VolumeMountState[fv.VolName] = volumeNotMounted
 			return fmt.Errorf("mounting volume failed")
 		}
 	}
@@ -901,12 +908,12 @@ func (fv *FakeVolume) setupInternal(mounterArgs MounterArgs) error {
 	if fv.VolName == SuccessAndTimeoutSetupVolumeName {
 		_, ok := fv.VolumeMountState[fv.VolName]
 		if ok {
-			fv.VolumeMountState[fv.VolName] = operationexecutor.VolumeMountUncertain
-			return volumetypes.NonFinalOperationFailure("time out on setup")
+			fv.VolumeMountState[fv.VolName] = volumeMountUncertain
+			return volumetypes.NewNonFinalOperationFailure("time out on setup")
 		}
 	}
 
-	fv.VolumeMountState[fv.VolName] = operationexecutor.VolumeMounted
+	fv.VolumeMountState[fv.VolName] = volumeNotMounted
 	return fv.SetUpAt(fv.getPath(), mounterArgs)
 }
 
@@ -1111,29 +1118,29 @@ func (fv *FakeVolume) mountDeviceInternal(spec *Spec, devicePath string, deviceM
 	fv.Lock()
 	defer fv.Unlock()
 	if spec.Name() == TimeoutOnMountDeviceVolumeName {
-		fv.DeviceMountState[spec.Name()] = operationexecutor.DeviceMountUncertain
+		fv.DeviceMountState[spec.Name()] = deviceMountUncertain
 		return volumetypes.NewNonFinalOperationFailure("mount failed")
 	}
 
 	if spec.Name() == FailMountDeviceVolumeName {
-		fv.DeviceMountState[spec.Name()] = operationexecutor.DeviceNotMounted
+		fv.DeviceMountState[spec.Name()] = deviceNotMounted
 		return fmt.Errorf("error mounting disk: %s", devicePath)
 	}
 
 	if spec.Name() == TimeoutAndFailOnMountDeviceVolumeName {
 		_, ok := fv.DeviceMountState[spec.Name()]
 		if !ok {
-			fv.DeviceMountState[spec.Name()] = operationexecutor.DeviceMountUncertain
+			fv.DeviceMountState[spec.Name()] = deviceMountUncertain
 			return volumetypes.NewNonFinalOperationFailure("timed out mounting error")
 		}
-		fv.DeviceMountState[spec.Name()] = operationexecutor.DeviceNotMounted
+		fv.DeviceMountState[spec.Name()] = deviceNotMounted
 		return fmt.Errorf("error mounting disk: %s", devicePath)
 	}
 
 	if spec.Name() == SuccessAndTimeoutDeviceName {
 		_, ok := fv.DeviceMountState[spec.Name()]
 		if ok {
-			fv.DeviceMountState[spec.Name()] = operationexecutor.DeviceMountUncertain
+			fv.DeviceMountState[spec.Name()] = deviceMountUncertain
 			return volumetypes.NewNonFinalOperationFailure("error mounting state")
 		}
 	}
@@ -1144,7 +1151,7 @@ func (fv *FakeVolume) mountDeviceInternal(spec *Spec, devicePath string, deviceM
 			return fmt.Errorf("error mounting disk: %s", devicePath)
 		}
 	}
-	fv.DeviceMountState[spec.Name()] = operationexecutor.DeviceGloballyMounted
+	fv.DeviceMountState[spec.Name()] = deviceMounted
 	fv.MountDeviceCallCount++
 	return nil
 }
