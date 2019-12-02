@@ -630,7 +630,7 @@ func (og *operationGenerator) GenerateMountVolumeFunc(
 			Mounter:             volumeMounter,
 			OuterVolumeSpecName: volumeToMount.OuterVolumeSpecName,
 			VolumeGidVolume:     volumeToMount.VolumeGidValue,
-			VolumeSpec:          originalSpec,
+			VolumeSpec:          volumeToMount.VolumeSpec,
 			VolumeMountState:    VolumeMounted,
 		}
 		if mountErr != nil {
@@ -660,17 +660,6 @@ func (og *operationGenerator) GenerateMountVolumeFunc(
 			}
 		}
 
-		// Update actual state of world
-		markOpts := MarkVolumeMountedOpts{
-			PodName:             volumeToMount.PodName,
-			PodUID:              volumeToMount.Pod.UID,
-			VolumeName:          volumeToMount.VolumeName,
-			Mounter:             volumeMounter,
-			OuterVolumeSpecName: volumeToMount.OuterVolumeSpecName,
-			VolumeGidVolume:     volumeToMount.VolumeGidValue,
-			VolumeSpec:          volumeToMount.VolumeSpec,
-			VolumeMountState:    VolumeMounted,
-		}
 		markVolMountedErr := actualStateOfWorld.MarkVolumeAsMounted(markOpts)
 		if markVolMountedErr != nil {
 			// On failure, return error. Caller will log and retry.
