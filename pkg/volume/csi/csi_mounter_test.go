@@ -402,7 +402,7 @@ func TestMounterSetupWithStatusTracking(t *testing.T) {
 	fakeClient := fakeclient.NewSimpleClientset()
 	plug, tmpDir := newTestPlugin(t, fakeClient)
 	defer os.RemoveAll(tmpDir)
-	nonFinalError := volumetypes.NewNonFinalOperationFailure("non-final-error")
+	nonFinalError := volumetypes.NewUncertainProgressError("non-final-error")
 	transientError := volumetypes.NewTransientOperationFailure("transient-error")
 
 	testCases := []struct {

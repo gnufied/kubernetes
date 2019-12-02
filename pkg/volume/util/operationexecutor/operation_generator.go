@@ -705,7 +705,7 @@ func (og *operationGenerator) markDeviceErrorState(volumeToMount VolumeToMount, 
 		return
 	}
 
-	if volumetypes.IsNonFinalError(mountError) &&
+	if volumetypes.IsUncertainProgressError(mountError) &&
 		actualStateOfWorld.GetDeviceMountState(volumeToMount.VolumeName) == DeviceNotMounted {
 		// only devices which are not mounted can be marked as uncertain. We do not want to mark a device
 		// which was previously marked as mounted here as uncertain.
@@ -727,7 +727,7 @@ func (og *operationGenerator) markVolumeErrorState(volumeToMount VolumeToMount, 
 		return
 	}
 
-	if volumetypes.IsNonFinalError(mountError) &&
+	if volumetypes.IsUncertainProgressError(mountError) &&
 		actualStateOfWorld.GetVolumeMountState(volumeToMount.VolumeName, markOpts.PodName) == VolumeNotMounted {
 		t := actualStateOfWorld.MarkVolumeMountAsUncertain(markOpts)
 		if t != nil {

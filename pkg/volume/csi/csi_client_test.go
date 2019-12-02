@@ -158,7 +158,7 @@ func (c *fakeCsiDriverClient) NodePublishVolume(
 
 	_, err := c.nodeClient.NodePublishVolume(ctx, req)
 	if err != nil && !isFinalError(err) {
-		return volumetypes.NewNonFinalOperationFailure(err.Error())
+		return volumetypes.NewUncertainProgressError(err.Error())
 	}
 	return err
 }
@@ -206,7 +206,7 @@ func (c *fakeCsiDriverClient) NodeStageVolume(ctx context.Context,
 
 	_, err := c.nodeClient.NodeStageVolume(ctx, req)
 	if err != nil && !isFinalError(err) {
-		return volumetypes.NewNonFinalOperationFailure(err.Error())
+		return volumetypes.NewUncertainProgressError(err.Error())
 	}
 	return err
 }

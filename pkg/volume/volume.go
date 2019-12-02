@@ -19,7 +19,7 @@ package volume
 import (
 	"time"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -130,7 +130,7 @@ type Mounter interface {
 	// implementations must be idempotent.
 	// It could return following types of errors:
 	//   - TransientOperationFailure
-	//   - NonFinalOperationFailure
+	//   - UncertainProgressError
 	//   - Error of any other type should be considered a final error
 	SetUp(mounterArgs MounterArgs) error
 
@@ -254,7 +254,7 @@ type DeviceMounter interface {
 	// Note that devicePath can be empty if the volume plugin does not implement any of Attach and WaitForAttach methods.
 	// It could return following types of errors:
 	//   - TransientOperationFailure
-	//   - NonFinalOperationFailure
+	//   - UncertainProgressError
 	//   - Error of any other type should be considered a final error
 	MountDevice(spec *Spec, devicePath string, deviceMountPath string) error
 }

@@ -65,22 +65,22 @@ func NewTransientOperationFailure(msg string) *TransientOperationFailure {
 	return &TransientOperationFailure{msg: msg}
 }
 
-// NonFinalOperationFailure indicates operation failed with a non-final error
+// UncertainProgressError indicates operation failed with a non-final error
 // and operation may be in-progress in background.
-type NonFinalOperationFailure struct {
+type UncertainProgressError struct {
 	msg string
 }
 
-func (err *NonFinalOperationFailure) Error() string {
+func (err *UncertainProgressError) Error() string {
 	return err.msg
 }
 
-func NewNonFinalOperationFailure(msg string) *NonFinalOperationFailure {
-	return &NonFinalOperationFailure{msg: msg}
+func NewUncertainProgressError(msg string) *UncertainProgressError {
+	return &UncertainProgressError{msg: msg}
 }
 
 func IsOperationFinishedError(err error) bool {
-	if _, ok := err.(*NonFinalOperationFailure); ok {
+	if _, ok := err.(*UncertainProgressError); ok {
 		return false
 	}
 	if _, ok := err.(*TransientOperationFailure); ok {
@@ -89,8 +89,8 @@ func IsOperationFinishedError(err error) bool {
 	return true
 }
 
-func IsNonFinalError(err error) bool {
-	if _, ok := err.(*NonFinalOperationFailure); ok {
+func IsUncertainProgressError(err error) bool {
+	if _, ok := err.(*UncertainProgressError); ok {
 		return true
 	}
 	return false

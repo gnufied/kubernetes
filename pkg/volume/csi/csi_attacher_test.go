@@ -1056,7 +1056,7 @@ func TestAttacherGetDeviceMountPath(t *testing.T) {
 
 func TestAttacherMountDevice(t *testing.T) {
 	pvName := "test-pv"
-	nonFinalError := volumetypes.NewNonFinalOperationFailure("")
+	nonFinalError := volumetypes.NewUncertainProgressError("")
 	transientError := volumetypes.NewTransientOperationFailure("")
 
 	testCases := []struct {

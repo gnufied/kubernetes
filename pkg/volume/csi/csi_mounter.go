@@ -282,7 +282,7 @@ func (c *csiMountMgr) setupInternal(dir string, mounterArgs volume.MounterArgs) 
 
 	err = c.applyFSGroup(fsType, mounterArgs.FsGroup)
 	if err != nil {
-		return volumetypes.NewNonFinalOperationFailure(fmt.Sprintf("applyFSGroup failed for vol %s: %v", c.volumeID, err))
+		return volumetypes.NewUncertainProgressError(fmt.Sprintf("applyFSGroup failed for vol %s: %v", c.volumeID, err))
 	}
 
 	klog.V(4).Infof(log("mounter.SetUp successfully requested NodePublish [%s]", dir))
