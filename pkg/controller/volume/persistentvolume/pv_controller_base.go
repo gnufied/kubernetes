@@ -403,7 +403,7 @@ func (ctrl *PersistentVolumeController) volumeWorker() {
 		}
 		defer ctrl.volumeQueue.Done(keyObj)
 		key := keyObj.(string)
-		klog.V(5).Infof("volumeWorker[%s]", key)
+		klog.V(3).Infof("********** volumeWorker[%s]", key)
 
 		_, name, err := cache.SplitMetaNamespaceKey(key)
 		if err != nil {

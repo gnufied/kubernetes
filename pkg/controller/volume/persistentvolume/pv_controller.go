@@ -605,6 +605,8 @@ func (ctrl *PersistentVolumeController) syncVolume(volume *v1.PersistentVolume) 
 				}
 			}
 
+			klog.V(2).Infof("********** hemant volume %q lost the claim", volume.Name)
+
 			if err = ctrl.reclaimVolume(volume); err != nil {
 				// Release failed, we will fall back into the same condition
 				// in the next call to this method
@@ -665,6 +667,7 @@ func (ctrl *PersistentVolumeController) syncVolume(volume *v1.PersistentVolume) 
 						return err
 					}
 				}
+				klog.V(2).Infof("********** hemant volume %q is bound to wrong pvc", volume.Name)
 				if err = ctrl.reclaimVolume(volume); err != nil {
 					// Deletion failed, we will fall back into the same condition
 					// in the next call to this method
