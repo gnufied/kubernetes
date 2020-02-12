@@ -1409,6 +1409,14 @@ func (vs *VSphere) DeleteVolume(vmDiskPath string) error {
 		if err != nil {
 			return err
 		}
+		vmDiskPathCopy := vmDiskPath
+		vmDiskPathCopy = vclib.RemoveStorageClusterORFolderNameFromVDiskPath(vmDiskPathCopy)
+		_, err = dc.GetVirtualDiskPage83Data(ctx, vmDiskPathCopy)
+		if vclib.IsNotFound(err) {
+			klog.V(3).Infof("Disk %s is already deleted", vmDiskPath)
+			return nil
+		}
+
 		disk := diskmanagers.VirtualDisk{
 			DiskPath:      vmDiskPath,
 			VolumeOptions: &vclib.VolumeOptions{},
