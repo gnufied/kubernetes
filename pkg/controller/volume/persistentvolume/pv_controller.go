@@ -1186,6 +1186,9 @@ func (ctrl *PersistentVolumeController) deleteVolumeOperation(volume *v1.Persist
 		klog.V(3).Infof("error reading persistent volume %q: %v", volume.Name, err)
 		return "", nil
 	}
+	if newVolume.GetDeletionTimestamp() != nil {
+		klog.V(3).Infof("********** volume %s is already being deleted", volume.Name)
+	}
 	needsReclaim, err := ctrl.isVolumeReleased(newVolume)
 	if err != nil {
 		klog.V(3).Infof("error reading claim for volume %q: %v", volume.Name, err)
