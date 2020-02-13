@@ -39,6 +39,7 @@ import (
 	"github.com/vmware/govmomi/vapi/rest"
 	"github.com/vmware/govmomi/vapi/tags"
 	"github.com/vmware/govmomi/vim25/mo"
+	"github.com/vmware/govmomi/vim25/soap"
 	vmwaretypes "github.com/vmware/govmomi/vim25/types"
 	v1 "k8s.io/api/core/v1"
 	k8stypes "k8s.io/apimachinery/pkg/types"
@@ -1412,6 +1413,13 @@ func (vs *VSphere) DeleteVolume(vmDiskPath string) error {
 		vmDiskPathCopy := vmDiskPath
 		vmDiskPathCopy = vclib.RemoveStorageClusterORFolderNameFromVDiskPath(vmDiskPathCopy)
 		_, err = dc.GetVirtualDiskPage83Data(ctx, vmDiskPathCopy)
+		if soap.IsSoapFault(err) {
+			klog.V(3).Infof("********** This is a soap error: %s", vmDiskPath)
+			fault := soap.ToSoapFault(err)
+			if fault != nil {
+				klog.V(3).Infof("********** code is %s and message is %s, %s and %v", fault.Code, fault.String, fault.Detail.Fault)
+			}
+		}
 		if vclib.IsManagedObjectNotFoundError(err) {
 			klog.V(3).Infof("Disk %s is already deleted", vmDiskPath)
 			return nil
