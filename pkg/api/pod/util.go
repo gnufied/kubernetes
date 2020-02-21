@@ -391,6 +391,8 @@ func dropDisabledFields(
 
 	dropDisabledGMSAFields(podSpec, oldPodSpec)
 
+	dropDisabledFSGroupFields(podSpec, oldPodSpec)
+
 	if !utilfeature.DefaultFeatureGate.Enabled(features.RuntimeClass) && !runtimeClassInUse(oldPodSpec) {
 		// Set RuntimeClassName to nil only if feature is disabled and it is not used
 		podSpec.RuntimeClassName = nil
@@ -492,6 +494,20 @@ func dropDisabledVolumeDevicesFields(podSpec, oldPodSpec *api.PodSpec) {
 			c.VolumeDevices = nil
 			return true
 		})
+	}
+}
+
+func dropDisabledFSGroupFields(podSpec, oldPodSpec *api.PodSpec) {
+	if oldPodSpec == nil {
+		return
+	}
+	if !utilfeature.DefaultFeatureGate.Enabled(features.ConfigurableFSGroupPolicy) {
+		securityContext := oldPodSpec.SecurityContext
+		// if oldPodSpec had no FSGroupChangePolicy set then we should prevent new pod from having this field
+		// if ConfigurableFSGroupPolicy feature is disabled
+		if (securityContext == nil || securityContext.FSGroupChangePolicy == nil) && podSpec.SecurityContext != nil {
+			podSpec.SecurityContext.FSGroupChangePolicy = nil
+		}
 	}
 }
 

@@ -31,7 +31,7 @@ import (
 
 	"k8s.io/klog"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/resource"
 	apimachineryvalidation "k8s.io/apimachinery/pkg/api/validation"
@@ -2824,6 +2824,19 @@ func validateDNSPolicy(dnsPolicy *core.DNSPolicy, fldPath *field.Path) field.Err
 	return allErrors
 }
 
+func validateFSGroupChangePolicy(fsGroupPolicy *core.PodFSGroupChangePolicy, fldPath *field.Path) field.ErrorList {
+	allErrors := field.ErrorList{}
+	switch *fsGroupPolicy {
+	case core.AlwaysChangeVolumePermission, core.OnRootMismatch:
+	case "":
+		allErrors = append(allErrors, field.Required(fldPath, ""))
+	default:
+		validValues := []string{string(core.AlwaysChangeVolumePermission), string(core.OnRootMismatch)}
+		allErrors = append(allErrors, field.NotSupported(fldPath, fsGroupPolicy, validValues))
+	}
+	return allErrors
+}
+
 const (
 	// Limits on various DNS parameters. These are derived from
 	// restrictions in Linux libc name resolution handling.
@@ -3665,6 +3678,10 @@ func ValidatePodSecurityContext(securityContext *core.PodSecurityContext, spec *
 
 		if len(securityContext.Sysctls) != 0 {
 			allErrs = append(allErrs, validateSysctls(securityContext.Sysctls, fldPath.Child("sysctls"))...)
+		}
+
+		if securityContext.FSGroupChangePolicy != nil {
+			allErrs = append(allErrs, validateFSGroupChangePolicy(securityContext.FSGroupChangePolicy, fldPath.Child("fsGroupChangePolicy"))...)
 		}
 
 		allErrs = append(allErrs, validateWindowsSecurityContextOptions(securityContext.WindowsOptions, fldPath.Child("windowsOptions"))...)
