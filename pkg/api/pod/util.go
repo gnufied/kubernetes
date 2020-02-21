@@ -393,6 +393,8 @@ func dropDisabledFields(
 
 	dropDisabledFSGroupFields(podSpec, oldPodSpec)
 
+	dropDisabledFSGroupFields(podSpec, oldPodSpec)
+
 	if !utilfeature.DefaultFeatureGate.Enabled(features.RuntimeClass) && !runtimeClassInUse(oldPodSpec) {
 		// Set RuntimeClassName to nil only if feature is disabled and it is not used
 		podSpec.RuntimeClassName = nil
