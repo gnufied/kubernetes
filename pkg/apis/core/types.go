@@ -2787,10 +2787,19 @@ type Sysctl struct {
 	Value string
 }
 
+// PodFSGroupChangePolicy holds policies that will be used for applying fsGroup to a volume
+// when volume is mounted.
 type PodFSGroupChangePolicy string
 
 const (
-	OnRootMismatch               PodFSGroupChangePolicy = "OnRootMismatch"
+	// OnRootMismatch indicates that volume's ownership and permissions will be changed
+	// only when permission and ownership of root directory does not match with expected
+	// permissions on the volume. This can help shorten the time it takes to change
+	// ownership and permissions of a volume.
+	OnRootMismatch PodFSGroupChangePolicy = "OnRootMismatch"
+	// AlwaysChangeVolumePermission indicates that volume's ownership and permissions
+	// should always be changed whenever volume is mounted inside a Pod. This the default
+	// behavior.
 	AlwaysChangeVolumePermission PodFSGroupChangePolicy = "Always"
 )
 
