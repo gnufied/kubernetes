@@ -392,6 +392,7 @@ replace (
 	github.com/mattn/go-shellwords => github.com/mattn/go-shellwords v1.0.5
 	github.com/mattn/goveralls => github.com/mattn/goveralls v0.0.2
 	github.com/matttproud/golang_protobuf_extensions => github.com/matttproud/golang_protobuf_extensions v1.0.1
+	github.com/mdempsky/gocode => github.com/mdempsky/gocode v0.0.0-20191202075140-939b4a677f2f
 	github.com/mesos/mesos-go => github.com/mesos/mesos-go v0.0.9
 	github.com/mholt/certmagic => github.com/mholt/certmagic v0.6.2-0.20190624175158-6a42ef9fe8c2
 	github.com/miekg/dns => github.com/miekg/dns v1.1.4
