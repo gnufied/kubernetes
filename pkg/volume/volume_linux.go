@@ -45,6 +45,7 @@ func SetVolumeOwnership(mounter Mounter, fsGroup *int64, fsGroupChangePolicy *v1
 	}
 
 	if skipPermissionChange(mounter, fsGroup, fsGroupChangePolicy) {
+		klog.V(3).Infof("skipping permission and ownership change for volume %s", mounter.GetPath())
 		return nil
 	}
 
@@ -140,12 +141,13 @@ func changeFilePermission(filename string, fsGroup *int64, readonly bool) (os.Fi
 }
 
 func skipPermissionChange(mounter Mounter, fsGroup *int64, fsGroupChangePolicy *v1.PodFSGroupChangePolicy) bool {
+	dir := mounter.GetPath()
 	if !utilfeature.DefaultFeatureGate.Enabled(features.ConfigurableFSGroupPermissions) {
-		klog.V(4).Infof("perform recursive ownership change, configurable fsGroupChangepolicy is not enabled")
+		klog.V(4).Infof("perform recursive ownership change for %s, configurable fsGroupChangepolicy is not enabled", dir)
 		return false
 	}
 	if fsGroupChangePolicy == nil || *fsGroupChangePolicy != v1.OnRootMismatch {
-		klog.V(4).Infof("perform recursive ownership change, fsGroupChangePolicy is set to %v", fsGroupChangePolicy)
+		klog.V(4).Infof("perform recursive ownership change for %s", dir)
 		return false
 	}
 	return !requiresPermissionChange(mounter.GetPath(), fsGroup, mounter.GetAttributes().ReadOnly)
@@ -178,8 +180,11 @@ func requiresPermissionChange(rootDir string, fsGroup *int64, readonly bool) boo
 		return true
 	}
 	unixPerms |= execMask
+	filePerm := fsInfo.Mode().Perm()
 
-	if unixPerms != fsInfo.Mode().Perm() || (fsInfo.Mode()&os.ModeSetgid == 0) {
+	// We need to check if actual permissions of root directory is a superset of permissions required by unixPerms
+	// and setgid bits are set in permissions of the directory.
+	if (unixPerms&filePerm != unixPerms) || (fsInfo.Mode()&os.ModeSetgid == 0) {
 		klog.V(4).Infof("performing recursive ownership change on %s because of mismatching mode", rootDir)
 		return true
 	}
