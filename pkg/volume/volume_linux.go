@@ -161,8 +161,12 @@ func requiresPermissionChange(rootDir string, fsGroup *int64, readonly bool) boo
 	unixPerms |= execMask
 	filePerm := fsInfo.Mode().Perm()
 
-	// We need to check if actual permissions of root directory is a superset of permissions required by unixPerms
-	// and setgid bits are set in permissions of the directory.
+	// We need to check if actual permissions of root directory is a superset of permissions required by unixPerms.
+	// This is done by checking if permission bits expected in unixPerms is set in actual permissions of the directory.
+	// We use bitwise AND operation to check set bits. For example:
+	//     unixPerms: 770, filePerms: 775 : 770&775 = 770
+	//     unixPerms: 770, filePerms: 770 : 770&770 = 770
+	// We also need to check if setgid bits are set in permissions of the directory.
 	if (unixPerms&filePerm != unixPerms) || (fsInfo.Mode()&os.ModeSetgid == 0) {
 		klog.V(4).Infof("performing recursive ownership change on %s because of mismatching mode", rootDir)
 		return true

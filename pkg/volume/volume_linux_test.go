@@ -19,12 +19,17 @@ limitations under the License.
 package volume
 
 import (
+	"fmt"
 	"os"
+	"path/filepath"
 	"syscall"
 	"testing"
 
 	v1 "k8s.io/api/core/v1"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	utiltesting "k8s.io/client-go/util/testing"
+	featuregatetesting "k8s.io/component-base/featuregate/testing"
+	"k8s.io/kubernetes/pkg/features"
 )
 
 type localFakeMounter struct {
@@ -158,5 +163,176 @@ func TestSkipPermissionChange(t *testing.T) {
 
 		})
 	}
+}
 
+func TestSetVolumeOwnership(t *testing.T) {
+	always := v1.AlwaysChangeVolumePermission
+	onrootMismatch := v1.OnRootMismatch
+	expectedMask := rwMask | os.ModeSetgid | execMask
+
+	tests := []struct {
+		description         string
+		fsGroupChangePolicy *v1.PodFSGroupChangePolicy
+		setupFunc           func(path string) error
+		assertFunc          func(path string) error
+		featureGate         bool
+	}{
+		{
+			description:         "featuregate=on, fsgroupchangepolicy=always",
+			fsGroupChangePolicy: &always,
+			featureGate:         true,
+			setupFunc: func(path string) error {
+				info, err := os.Lstat(path)
+				if err != nil {
+					return err
+				}
+				// change mode of root folder to be right
+				err = os.Chmod(path, info.Mode()|expectedMask)
+				if err != nil {
+					return err
+				}
+
+				// create a subdirectory with invalid permissions
+				rogueDir := filepath.Join(path, "roguedir")
+				err = os.Mkdir(rogueDir, info.Mode())
+				if err != nil {
+					return err
+				}
+				return nil
+			},
+			assertFunc: func(path string) error {
+				rogueDir := filepath.Join(path, "roguedir")
+				info, err := os.Lstat(path)
+				if err != nil {
+					return err
+				}
+				stat, ok := info.Sys().(*syscall.Stat_t)
+				if !ok || stat == nil {
+					return fmt.Errorf("unable to get stat information for %s", rogueDir)
+				}
+
+				var expectedGid int64 = int64(stat.Gid)
+				doPermissionChange := requiresPermissionChange(rogueDir, &expectedGid, false)
+				if doPermissionChange {
+					return fmt.Errorf("invalid permissions on %s", rogueDir)
+				}
+				return nil
+			},
+		},
+		{
+			description:         "featuregate=on, fsgroupchangepolicy=onrootmismatch,rootdir=validperm",
+			fsGroupChangePolicy: &onrootMismatch,
+			featureGate:         true,
+			setupFunc: func(path string) error {
+				info, err := os.Lstat(path)
+				if err != nil {
+					return err
+				}
+				// change mode of root folder to be right
+				err = os.Chmod(path, info.Mode()|expectedMask)
+				if err != nil {
+					return err
+				}
+
+				// create a subdirectory with invalid permissions
+				rogueDir := filepath.Join(path, "roguedir")
+				err = os.Mkdir(rogueDir, rwMask)
+				if err != nil {
+					return err
+				}
+				return nil
+			},
+			assertFunc: func(path string) error {
+				rogueDir := filepath.Join(path, "roguedir")
+				info, err := os.Lstat(path)
+				if err != nil {
+					return err
+				}
+				stat, ok := info.Sys().(*syscall.Stat_t)
+				if !ok || stat == nil {
+					return fmt.Errorf("unable to get stat information for %s", rogueDir)
+				}
+
+				var expectedGid int64 = int64(stat.Gid)
+				doPermissionChange := requiresPermissionChange(rogueDir, &expectedGid, false)
+				if !doPermissionChange {
+					return fmt.Errorf("invalid permissions on %s", rogueDir)
+				}
+				return nil
+			},
+		},
+		{
+			description:         "featuregate=on, fsgroupchangepolicy=onrootmismatch,rootdir=invalidperm",
+			fsGroupChangePolicy: &onrootMismatch,
+			featureGate:         true,
+			setupFunc: func(path string) error {
+				// change mode of root folder to be right
+				err := os.Chmod(path, 0770)
+				if err != nil {
+					return err
+				}
+
+				// create a subdirectory with invalid permissions
+				rogueDir := filepath.Join(path, "roguedir")
+				err = os.Mkdir(rogueDir, rwMask)
+				if err != nil {
+					return err
+				}
+				return nil
+			},
+			assertFunc: func(path string) error {
+				rogueDir := filepath.Join(path, "roguedir")
+				info, err := os.Lstat(path)
+				if err != nil {
+					return err
+				}
+				stat, ok := info.Sys().(*syscall.Stat_t)
+				if !ok || stat == nil {
+					return fmt.Errorf("unable to get stat information for %s", rogueDir)
+				}
+
+				var expectedGid int64 = int64(stat.Gid)
+				doPermissionChange := requiresPermissionChange(rogueDir, &expectedGid, false)
+				if doPermissionChange {
+					return fmt.Errorf("invalid permissions on %s", rogueDir)
+				}
+				return nil
+			},
+		},
+	}
+
+	for _, test := range tests {
+		defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.ConfigurableFSGroupPolicy, test.featureGate)()
+		tmpDir, err := utiltesting.MkTmpdir("volume_linux_ownership")
+		if err != nil {
+			t.Fatalf("error creating temp dir: %v", err)
+		}
+
+		defer os.RemoveAll(tmpDir)
+		info, err := os.Lstat(tmpDir)
+		if err != nil {
+			t.Fatalf("error reading permission of tmpdir: %v", err)
+		}
+
+		stat, ok := info.Sys().(*syscall.Stat_t)
+		if !ok || stat == nil {
+			t.Fatalf("error reading permission stats for tmpdir: %s", tmpDir)
+		}
+
+		var expectedGid int64 = int64(stat.Gid)
+		err = test.setupFunc(tmpDir)
+		if err != nil {
+			t.Errorf("for %s error running setup with: %v", test.description, err)
+		}
+
+		mounter := &localFakeMounter{path: tmpDir}
+		err = SetVolumeOwnership(mounter, &expectedGid, test.fsGroupChangePolicy)
+		if err != nil {
+			t.Errorf("for %s error changing ownership with: %v", test.description, err)
+		}
+		err = test.assertFunc(tmpDir)
+		if err != nil {
+			t.Errorf("for %s error verifying permissions with: %v", test.description, err)
+		}
+	}
 }
