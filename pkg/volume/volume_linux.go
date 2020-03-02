@@ -51,7 +51,7 @@ func SetVolumeOwnership(mounter Mounter, fsGroup *int64, fsGroupChangePolicy *v1
 	// This code exists for legacy purposes, so as old behaviour is entirely preserved when feature gate is disabled
 	// TODO: remove this when ConfigurableFSGroupPolicy turns beta.
 	if !fsGroupPolicyEnabled {
-		return legacyPermissionChange(mounter, fsGroup)
+		return legacyOwnershipChange(mounter, fsGroup)
 	}
 
 	if skipPermissionChange(mounter, fsGroup, fsGroupChangePolicy) {
@@ -68,7 +68,7 @@ func SetVolumeOwnership(mounter Mounter, fsGroup *int64, fsGroupChangePolicy *v1
 
 }
 
-func legacyPermissionChange(mounter Mounter, fsGroup *int64) error {
+func legacyOwnershipChange(mounter Mounter, fsGroup *int64) error {
 	return filepath.Walk(mounter.GetPath(), func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
