@@ -2826,11 +2826,9 @@ func validateDNSPolicy(dnsPolicy *core.DNSPolicy, fldPath *field.Path) field.Err
 
 func validateFSGroupChangePolicy(fsGroupPolicy *core.PodFSGroupChangePolicy, fldPath *field.Path) field.ErrorList {
 	allErrors := field.ErrorList{}
-	switch *fsGroupPolicy {
-	case core.AlwaysChangeVolumePermission, core.OnRootMismatch:
-	case "":
-		allErrors = append(allErrors, field.Required(fldPath, ""))
-	default:
+	validValues := sets.NewString(string(core.AlwaysChangeVolumePermission), string(core.OnRootMismatch))
+
+	if !validValues.Has(string(*fsGroupPolicy)) {
 		validValues := []string{string(core.AlwaysChangeVolumePermission), string(core.OnRootMismatch)}
 		allErrors = append(allErrors, field.NotSupported(fldPath, fsGroupPolicy, validValues))
 	}

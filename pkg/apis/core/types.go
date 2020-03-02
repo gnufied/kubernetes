@@ -2800,7 +2800,7 @@ const (
 	// AlwaysChangeVolumePermission indicates that volume's ownership and permissions
 	// should always be changed whenever volume is mounted inside a Pod. This the default
 	// behavior.
-	AlwaysChangeVolumePermission PodFSGroupChangePolicy = "AlwaysChangeVolumePermission"
+	AlwaysChangeVolumePermission PodFSGroupChangePolicy = "Always"
 )
 
 // PodSecurityContext holds pod-level security attributes and common container settings.
