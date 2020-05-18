@@ -39,6 +39,12 @@ const (
 func DeletePodOrFail(c clientset.Interface, ns, name string) {
 	ginkgo.By(fmt.Sprintf("Deleting pod %s in namespace %s", name, ns))
 	err := c.CoreV1().Pods(ns).Delete(context.TODO(), name, metav1.DeleteOptions{})
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return
+		}
+	}
+
 	expectNoError(err, "failed to delete pod %s in namespace %s", name, ns)
 }
 
