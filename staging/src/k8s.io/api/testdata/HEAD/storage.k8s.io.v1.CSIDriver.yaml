@@ -31,6 +31,7 @@ metadata:
   uid: "7"
 spec:
   attachRequired: false
+  fsGroupPolicy: 6/ʕVŚ(ĿȊ甞谐颋ǅSǡƏS$+
   podInfoOnMount: false
   volumeLifecycleModes:
   - r鯹)晿<o,c鮽ort昍řČ扷5ƗǸ
