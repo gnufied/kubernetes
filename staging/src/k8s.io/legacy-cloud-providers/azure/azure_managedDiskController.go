@@ -34,6 +34,7 @@ import (
 	cloudvolume "k8s.io/cloud-provider/volume"
 	volumehelpers "k8s.io/cloud-provider/volume/helpers"
 	"k8s.io/klog/v2"
+	"k8s.io/legacy-cloud-providers/azure/clients/armclient"
 )
 
 const (
@@ -347,7 +348,7 @@ func (c *Cloud) GetAzureDiskLabels(diskURI string) (map[string]string, error) {
 	}
 
 	labels := map[string]string{
-		v1.LabelZoneRegion: c.Location,
+		v1.LabelZoneRegion: armclient.NormalizeAzureRegion(c.Location),
 	}
 	// no azure credential is set, return nil
 	if c.DisksClient == nil {
