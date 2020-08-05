@@ -61,8 +61,13 @@ func NewEBSUtil(client *ec2.EC2) *EBSUtil {
 func (ebs *EBSUtil) AttachDisk(volumeID string, nodeName string) error {
 	instance, err := findInstanceByNodeName(nodeName, ebs.client)
 	if err != nil {
-		return fmt.Errorf("error finding node %s: %v", nodeName, err)
+		return fmt.Errorf("error attaching volume %s to node %s", volumeID, nodeName)
 	}
+	err = ebs.waitForAvailable(volumeID)
+	if err != nil {
+		return fmt.Errorf("error waiting volume %s to be available: %s", volumeID, err)
+	}
+
 	device, err := ebs.findFreeDevice(instance)
 	if err != nil {
 		return fmt.Errorf("error finding free device on node %s", nodeName)
@@ -93,7 +98,7 @@ func (ebs *EBSUtil) findFreeDevice(instance *ec2.Instance) (string, error) {
 
 		deviceMappings[name] = aws.StringValue(blockDevice.Ebs.VolumeId)
 	}
-	for device := range ebs.possibleDevices {
+	for device, _ := range ebs.possibleDevices {
 		if _, found := deviceMappings[device]; !found {
 			return device, nil
 		}
@@ -143,6 +148,27 @@ func (ebs *EBSUtil) waitForAttach(volumeId string) error {
 	return err
 }
 
+func (ebs *EBSUtil) waitForAvailable(volumeID string) error {
+	backoff := wait.Backoff{
+		Duration: volumeAttachmentStatusPollDelay,
+		Factor:   volumeAttachmentStatusFactor,
+		Steps:    volumeAttachmentStatusSteps,
+	}
+	time.Sleep(volumeAttachmentStatusPollDelay)
+	err := wait.ExponentialBackoff(backoff, func() (bool, error) {
+		info, err := ebs.describeVolume(volumeID)
+		if err != nil {
+			return false, err
+		}
+		volumeState := aws.StringValue(info.State)
+		if volumeState != ec2.VolumeStateAvailable {
+			return false, nil
+		}
+		return true, nil
+	})
+	return err
+}
+
 // Gets the full information about this volume from the EC2 API
 func (ebs *EBSUtil) describeVolume(volumeID string) (*ec2.Volume, error) {
 	request := &ec2.DescribeVolumesInput{
@@ -153,11 +179,13 @@ func (ebs *EBSUtil) describeVolume(volumeID string) (*ec2.Volume, error) {
 	var nextToken *string
 	for {
 		response, err := ebs.client.DescribeVolumes(request)
+
 		if err != nil {
 			return nil, err
 		}
 
 		results = append(results, response.Volumes...)
+
 		nextToken = response.NextToken
 		if aws.StringValue(nextToken) == "" {
 			break
