@@ -57,7 +57,7 @@ const (
 	nodeStatusTimeout   = 10 * time.Minute
 	nodeStatusPollTime  = 1 * time.Second
 	podEvictTimeout     = 2 * time.Minute
-	minNodes            = 2
+	minNodes            = 1
 )
 
 var _ = utils.SIGDescribe("Pod Disks", func() {
@@ -86,7 +86,7 @@ var _ = utils.SIGDescribe("Pod Disks", func() {
 		framework.ExpectNoError(err)
 		gomega.Expect(len(nodes.Items)).To(gomega.BeNumerically(">=", minNodes), fmt.Sprintf("Requires at least %d nodes", minNodes))
 		host0Name = types.NodeName(nodes.Items[0].ObjectMeta.Name)
-		host1Name = types.NodeName(nodes.Items[1].ObjectMeta.Name)
+		host1Name = types.NodeName(nodes.Items[0].ObjectMeta.Name)
 	})
 
 	ginkgo.Context("schedule pods each with a PD, delete pod and verify detach [Slow]", func() {
@@ -460,7 +460,7 @@ var _ = utils.SIGDescribe("Pod Disks", func() {
 		err = attachPD(host0Name, diskName)
 		framework.ExpectNoError(err, "Error attaching PD")
 		defer func() {
-			detachPD(host0Name, diskName)
+			detachAndDeletePDs(diskName, []types.NodeName{host0Name})
 		}()
 		pod := testPDPod([]string{diskName}, host0Name /*readOnly*/, false, 1)
 		_, err = podClient.Create(context.TODO(), pod, metav1.CreateOptions{})

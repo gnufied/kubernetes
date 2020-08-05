@@ -61,7 +61,7 @@ func NewEBSUtil(client *ec2.EC2) *EBSUtil {
 func (ebs *EBSUtil) AttachDisk(volumeID string, nodeName string) error {
 	instance, err := findInstanceByNodeName(nodeName, ebs.client)
 	if err != nil {
-		return fmt.Errorf("error attaching volume %s to node %s", volumeID, nodeName)
+		return fmt.Errorf("error finding node %s: %v", nodeName, err)
 	}
 	device, err := ebs.findFreeDevice(instance)
 	if err != nil {
@@ -93,7 +93,7 @@ func (ebs *EBSUtil) findFreeDevice(instance *ec2.Instance) (string, error) {
 
 		deviceMappings[name] = aws.StringValue(blockDevice.Ebs.VolumeId)
 	}
-	for device, _ := range ebs.possibleDevices {
+	for device := range ebs.possibleDevices {
 		if _, found := deviceMappings[device]; !found {
 			return device, nil
 		}
@@ -153,13 +153,11 @@ func (ebs *EBSUtil) describeVolume(volumeID string) (*ec2.Volume, error) {
 	var nextToken *string
 	for {
 		response, err := ebs.client.DescribeVolumes(request)
-
 		if err != nil {
 			return nil, err
 		}
 
 		results = append(results, response.Volumes...)
-
 		nextToken = response.NextToken
 		if aws.StringValue(nextToken) == "" {
 			break
