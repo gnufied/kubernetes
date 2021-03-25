@@ -1004,12 +1004,23 @@ func Test_Run_Positive_VolumeFSResizeControllerAttachEnabled(t *testing.T) {
 		name            string
 		volumeMode      *v1.PersistentVolumeMode
 		expansionFailed bool
+		uncertainTest   bool
 		pvName          string
 		pvcSize         resource.Quantity
 		pvcStatusSize   resource.Quantity
 		oldPVSize       resource.Quantity
 		newPVSize       resource.Quantity
 	}{
+		{
+			name:          "fail-expansion-uncertain-test",
+			volumeMode:    &fsMode,
+			uncertainTest: true,
+			pvName:        volumetesting.FailVolumeExpansion,
+			pvcSize:       resource.MustParse("10G"),
+			pvcStatusSize: resource.MustParse("0G"),
+			newPVSize:     resource.MustParse("12G"),
+			oldPVSize:     resource.MustParse("10G"),
+		},
 		{
 			name:          "expand-fs-volume",
 			volumeMode:    &fsMode,
@@ -1143,6 +1154,25 @@ func Test_Run_Positive_VolumeFSResizeControllerAttachEnabled(t *testing.T) {
 				defer close(stoppedChan)
 				reconciler.Run(stopChan)
 			}()
+			// uncertainTest means that in actualstate, the volume mount state is uncertain
+			if tc.uncertainTest {
+				waitErr := retryWithExponentialBackOff(testOperationBackOffDuration, func() (done bool, err error) {
+					mounted, _, err := asw.PodExistsInVolume(podName, volumeName)
+					if mounted || err != nil {
+						return false, nil
+					}
+					for _, mountedVolume := range asw.GetPossiblyMountedVolumesForPod(podName) {
+						if mountedVolume.VolumeName == volumeName {
+							return true, nil
+						}
+					}
+					return false, nil
+				})
+				if waitErr != nil {
+					t.Fatalf("Volume resize should succeeded %v", waitErr)
+				}
+				return
+			}
 			waitForMount(t, fakePlugin, volumeName, asw)
 			// Stop the reconciler.
 			close(stopChan)
@@ -1164,7 +1194,8 @@ func Test_Run_Positive_VolumeFSResizeControllerAttachEnabled(t *testing.T) {
 				if !cache.IsFSResizeRequiredError(podExistErr) {
 					t.Fatalf("Volume should be marked as fsResizeRequired, but receive unexpected error: %v", podExistErr)
 				}
-
+				//mounted, _, err := asw.PodExistsInVolume(podName, volumeName)
+				//t.Fatalf("podexist mounted %v err %v", mounted, err)
 				// Start the reconciler again, we hope reconciler will perform the
 				// resize operation and clear the fsResizeRequired flag for volume.
 				go reconciler.Run(wait.NeverStop)
@@ -1174,7 +1205,7 @@ func Test_Run_Positive_VolumeFSResizeControllerAttachEnabled(t *testing.T) {
 					return mounted && err == nil, nil
 				})
 				if waitErr != nil {
-					t.Fatal("Volume resize should succeeded")
+					t.Fatalf("Volume resize should succeeded %v", waitErr)
 				}
 			}
 
