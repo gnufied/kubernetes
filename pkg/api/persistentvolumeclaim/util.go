@@ -74,6 +74,29 @@ func EnforceDataSourceBackwardsCompatibility(pvcSpec, oldPVCSpec *core.Persisten
 	}
 }
 
+func DropDisabledFieldsFromStatus(pvc, oldPVC *core.PersistentVolumeClaim) {
+	if !utilfeature.DefaultFeatureGate.Enabled(features.ExpandPersistentVolumes) && oldPVC.Status.Conditions == nil {
+		pvc.Status.Conditions = nil
+	}
+
+	if !utilfeature.DefaultFeatureGate.Enabled(features.RecoverVolumeExpansionFailure) && !allocatedResourcesInUse(oldPVC) {
+		pvc.Status.AllocatedResources = nil
+	}
+}
+
+// SetAllocatedResources sets default value for AllocatedResources in case user decides to
+// expand the volume later on.
+func SetAllocatedResources(pvc, oldPVC *core.PersistentVolumeClaim) {
+	if utilfeature.DefaultFeatureGate.Enabled(features.RecoverVolumeExpansionFailure) {
+		userResources := pvc.Spec.Resources.Requests
+		// for new PVC creation we will simply set it to user requested size
+		// even if user provided one.
+		if oldPVC == nil {
+			pvc.Status.AllocatedResources = userResources
+		}
+	}
+}
+
 func dataSourceInUse(oldPVCSpec *core.PersistentVolumeClaimSpec) bool {
 	if oldPVCSpec == nil {
 		return false
@@ -117,4 +140,16 @@ func NormalizeDataSources(pvcSpec *core.PersistentVolumeClaimSpec) {
 		// Using the new way of setting a data source
 		pvcSpec.DataSource = pvcSpec.DataSourceRef.DeepCopy()
 	}
+}
+
+func allocatedResourcesInUse(oldPVC *core.PersistentVolumeClaim) bool {
+	if oldPVC == nil {
+		return false
+	}
+
+	if oldPVC.Status.AllocatedResources != nil {
+		return true
+	}
+
+	return false
 }
