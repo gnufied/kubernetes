@@ -401,6 +401,9 @@ type CSIDriverSpec struct {
 	//
 	// +optional
 	RequiresRepublish *bool
+
+	// RecoveryFromExpansionFailure enables expansion failure recovery
+	RecoveryFromExpansionFailure *bool
 }
 
 // FSGroupPolicy specifies if a CSI Driver supports modifying

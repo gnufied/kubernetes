@@ -498,6 +498,9 @@ type PersistentVolumeClaimStatus struct {
 	Capacity ResourceList
 	// +optional
 	Conditions []PersistentVolumeClaimCondition
+
+	// AllocatedResources stores resources that were allocated for the PVC
+	AllocatedResources ResourceList
 }
 
 // PersistentVolumeAccessMode defines various access modes for PV.
