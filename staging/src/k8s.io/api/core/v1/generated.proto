@@ -2711,6 +2711,14 @@ message PersistentVolumeClaimStatus {
   // +patchMergeKey=type
   // +patchStrategy=merge
   repeated PersistentVolumeClaimCondition conditions = 4;
+
+  // ResizeStatus displays status of volume expansion
+  // +optional
+  optional string resizeStatus = 5;
+
+  // AllocatedResources stores resources that were allocated for the PVC
+  // +optional
+  map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> allocatedResources = 6;
 }
 
 // PersistentVolumeClaimTemplate is used to produce

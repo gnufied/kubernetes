@@ -4899,6 +4899,11 @@ var schemaYAML = typed.YAMLObject(`types:
           elementType:
             scalar: string
           elementRelationship: atomic
+    - name: allocatedResources
+      type:
+        map:
+          elementType:
+            namedType: io.k8s.apimachinery.pkg.api.resource.Quantity
     - name: capacity
       type:
         map:
@@ -4913,6 +4918,9 @@ var schemaYAML = typed.YAMLObject(`types:
           keys:
           - type
     - name: phase
+      type:
+        scalar: string
+    - name: resizeStatus
       type:
         scalar: string
 - name: io.k8s.api.core.v1.PersistentVolumeClaimTemplate
@@ -10005,6 +10013,9 @@ var schemaYAML = typed.YAMLObject(`types:
     - name: podInfoOnMount
       type:
         scalar: boolean
+    - name: recoveryFromExpansionFailure
+      type:
+        scalar: boolean
     - name: requiresRepublish
       type:
         scalar: boolean
@@ -10329,6 +10340,9 @@ var schemaYAML = typed.YAMLObject(`types:
       type:
         scalar: string
     - name: podInfoOnMount
+      type:
+        scalar: boolean
+    - name: recoveryFromExpansionFailure
       type:
         scalar: boolean
     - name: requiresRepublish

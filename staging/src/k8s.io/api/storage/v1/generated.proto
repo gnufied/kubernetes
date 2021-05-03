@@ -202,6 +202,10 @@ message CSIDriverSpec {
   //
   // +optional
   optional bool requiresRepublish = 7;
+
+  // RecoveryFromExpansionFailure enables expansion failure recovery
+  // +optional
+  optional bool recoveryFromExpansionFailure = 8;
 }
 
 // CSINode holds information about all CSI drivers installed on a node.

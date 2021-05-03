@@ -1309,11 +1309,13 @@ func (PersistentVolumeClaimSpec) SwaggerDoc() map[string]string {
 }
 
 var map_PersistentVolumeClaimStatus = map[string]string{
-	"":            "PersistentVolumeClaimStatus is the current status of a persistent volume claim.",
-	"phase":       "Phase represents the current phase of PersistentVolumeClaim.",
-	"accessModes": "AccessModes contains the actual access modes the volume backing the PVC has. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#access-modes-1",
-	"capacity":    "Represents the actual resources of the underlying volume.",
-	"conditions":  "Current Condition of persistent volume claim. If underlying persistent volume is being resized then the Condition will be set to 'ResizeStarted'.",
+	"":                   "PersistentVolumeClaimStatus is the current status of a persistent volume claim.",
+	"phase":              "Phase represents the current phase of PersistentVolumeClaim.",
+	"accessModes":        "AccessModes contains the actual access modes the volume backing the PVC has. More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#access-modes-1",
+	"capacity":           "Represents the actual resources of the underlying volume.",
+	"conditions":         "Current Condition of persistent volume claim. If underlying persistent volume is being resized then the Condition will be set to 'ResizeStarted'.",
+	"resizeStatus":       "ResizeStatus displays status of volume expansion",
+	"allocatedResources": "AllocatedResources stores resources that were allocated for the PVC",
 }
 
 func (PersistentVolumeClaimStatus) SwaggerDoc() map[string]string {
