@@ -67,3 +67,18 @@ func dataSourceIsEnabled(pvcSpec *core.PersistentVolumeClaimSpec) bool {
 	}
 	return false
 }
+
+// SetAllocatedResources ensures that AllocatedResources field can only increase and tracks
+// maximum user requested capacity.
+func SetAllocatedResources(pvc, oldPVC *core.PersistentVolumeClaim) {
+	if utilfeature.DefaultFeatureGate.Enabled(features.RecoverVolumeExpansionFailure) {
+		userResources := pvc.Spec.Resources.Requests
+
+		// for new PVC creation we will simply set it to user requested size
+		// even if user provided one.
+		if oldPVC == nil {
+			pvc.Status.AllocatedResources = userResources
+			return
+		}
+	}
+}
