@@ -310,6 +310,7 @@ func autoConvert_v1beta1_CSIDriverSpec_To_storage_CSIDriverSpec(in *v1beta1.CSID
 	out.FSGroupPolicy = (*storage.FSGroupPolicy)(unsafe.Pointer(in.FSGroupPolicy))
 	out.TokenRequests = *(*[]storage.TokenRequest)(unsafe.Pointer(&in.TokenRequests))
 	out.RequiresRepublish = (*bool)(unsafe.Pointer(in.RequiresRepublish))
+	out.RecoveryFromExpansionFailure = (*bool)(unsafe.Pointer(in.RecoveryFromExpansionFailure))
 	return nil
 }
 
@@ -326,6 +327,7 @@ func autoConvert_storage_CSIDriverSpec_To_v1beta1_CSIDriverSpec(in *storage.CSID
 	out.StorageCapacity = (*bool)(unsafe.Pointer(in.StorageCapacity))
 	out.TokenRequests = *(*[]v1beta1.TokenRequest)(unsafe.Pointer(&in.TokenRequests))
 	out.RequiresRepublish = (*bool)(unsafe.Pointer(in.RequiresRepublish))
+	out.RecoveryFromExpansionFailure = (*bool)(unsafe.Pointer(in.RecoveryFromExpansionFailure))
 	return nil
 }
 

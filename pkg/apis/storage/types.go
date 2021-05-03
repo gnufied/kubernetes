@@ -403,6 +403,7 @@ type CSIDriverSpec struct {
 	RequiresRepublish *bool
 
 	// RecoveryFromExpansionFailure enables expansion failure recovery
+	// +optional
 	RecoveryFromExpansionFailure *bool
 }
 

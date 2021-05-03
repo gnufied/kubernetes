@@ -422,6 +422,9 @@ type CSIDriverSpec struct {
 	//
 	// +optional
 	RequiresRepublish *bool `json:"requiresRepublish,omitempty" protobuf:"varint,7,opt,name=requiresRepublish"`
+	// RecoveryFromExpansionFailure enables expansion failure recovery
+	// +optional
+	RecoveryFromExpansionFailure *bool `json:"recoveryFromExpansionFailure,omitempty" protobuf:"varint,8,opt,name=recoveryFromExpansionFailure"`
 }
 
 // FSGroupPolicy specifies if a CSI Driver supports modifying

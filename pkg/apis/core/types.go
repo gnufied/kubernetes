@@ -471,6 +471,17 @@ const (
 	PersistentVolumeClaimFileSystemResizePending PersistentVolumeClaimConditionType = "FileSystemResizePending"
 )
 
+type VolumeResizeStatusType string
+
+const (
+	// VolumeResizeProposed means - a new volume expansion has been proposed
+	VolumeResizeProposed VolumeResizeStatusType = "Proposed"
+	// VolumeResizeInProgress means - a new volume expansion has started
+	VolumeResizeInProgress VolumeResizeStatusType = "InProgress"
+	// VolumeResizeFailed means - volume expansion has failed
+	VolumeResizeFailed VolumeResizeStatusType = "Failed"
+)
+
 // PersistentVolumeClaimCondition represents the current condition of PV claim
 type PersistentVolumeClaimCondition struct {
 	Type   PersistentVolumeClaimConditionType
@@ -499,7 +510,12 @@ type PersistentVolumeClaimStatus struct {
 	// +optional
 	Conditions []PersistentVolumeClaimCondition
 
+	// ResizeStatus displays status of volume expansion
+	// +optional
+	ResizeStatus VolumeResizeStatusType
+
 	// AllocatedResources stores resources that were allocated for the PVC
+	// +optional
 	AllocatedResources ResourceList
 }
 
