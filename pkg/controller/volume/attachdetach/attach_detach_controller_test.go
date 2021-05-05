@@ -26,12 +26,19 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/informers"
 	kcache "k8s.io/client-go/tools/cache"
+	featuregatetesting "k8s.io/component-base/featuregate/testing"
 	"k8s.io/kubernetes/pkg/controller"
 	"k8s.io/kubernetes/pkg/controller/volume/attachdetach/cache"
 	controllervolumetesting "k8s.io/kubernetes/pkg/controller/volume/attachdetach/testing"
+	"k8s.io/kubernetes/pkg/features"
 	"k8s.io/kubernetes/pkg/volume"
+	"k8s.io/kubernetes/pkg/volume/csi"
+	"k8s.io/kubernetes/pkg/volume/csimigration"
+	"k8s.io/kubernetes/pkg/volume/gcepd"
+	volumeutil "k8s.io/kubernetes/pkg/volume/util"
 )
 
 func Test_NewAttachDetachController_Positive(t *testing.T) {
@@ -542,6 +549,90 @@ func volumeAttachmentRecoveryTestCase(t *testing.T, tc vaTest) {
 
 	if testPlugin.GetErrorEncountered() {
 		t.Fatalf("Fatal error encountered in the testing volume plugin")
+	}
+
+}
+
+func Test_VARecovery_CSIMigration(t *testing.T) {
+	fakeKubeClient := controllervolumetesting.CreateTestClient()
+	informerFactory := informers.NewSharedInformerFactory(fakeKubeClient, time.Second*1)
+	plugins := gcepd.ProbeVolumePlugins()
+	plugins = append(plugins, csi.ProbeVolumePlugins()...)
+
+	// Create the controller
+	adcObj, err := NewAttachDetachController(
+		fakeKubeClient,
+		informerFactory.Core().V1().Pods(),
+		informerFactory.Core().V1().Nodes(),
+		informerFactory.Core().V1().PersistentVolumeClaims(),
+		informerFactory.Core().V1().PersistentVolumes(),
+		informerFactory.Storage().V1().CSINodes(),
+		informerFactory.Storage().V1().CSIDrivers(),
+		informerFactory.Storage().V1().VolumeAttachments(),
+		nil, /* cloud */
+		plugins,
+		nil, /* prober */
+		false,
+		1*time.Second,
+		DefaultTimerConfig,
+		nil, /* filteredDialOptions */
+	)
+	if err != nil {
+		t.Fatalf("NewAttachDetachController failed with error. Expected: <no error> Actual: <%v>", err)
+	}
+	adc := adcObj.(*attachDetachController)
+
+	type testcase struct {
+		testName         string
+		volumeHandle     string
+		csiMigration     bool
+		expectVolumeName string
+	}
+	testcases := []testcase{
+		{
+			testName:         "csi migration is not enabled, should get the original volumeName",
+			csiMigration:     false,
+			volumeHandle:     "vol1",
+			expectVolumeName: "kubernetes.io/gce-pd/vol1",
+		},
+		{
+			testName:         "csi migration is enabled, should get the CSI translated volumeName",
+			csiMigration:     true,
+			volumeHandle:     "vol2",
+			expectVolumeName: "kubernetes.io/csi/pd.csi.storage.gke.io^projects/UNSPECIFIED/zones/UNSPECIFIED/disks/vol2",
+		},
+	}
+
+	for _, tc := range testcases {
+
+		defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.CSIMigration, tc.csiMigration)()
+		defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.CSIMigrationGCE, tc.csiMigration)()
+
+		pv := controllervolumetesting.NewPV("migrated-pv", tc.volumeHandle)
+		volumeSpec := volume.NewSpecFromPersistentVolume(pv, false)
+		plugin, _ := adc.volumePluginMgr.FindAttachablePluginBySpec(volumeSpec)
+		pluginName := plugin.GetPluginName()
+		if pluginName != "kubernetes.io/gce-pd" {
+			t.Fatalf("Expect to get plugin \"kubernetes.io/gce-pd\", but got: %s", pluginName)
+		}
+
+		// suppose CSI migration is on for test plugin
+		if adc.csiMigratedPluginManager.IsMigrationEnabledForPlugin(pluginName) {
+			plugin, err = adc.volumePluginMgr.FindAttachablePluginByName(csi.CSIPluginName)
+			if err != nil {
+				t.Fatalf("Run failed with error. Expected: <no error> Actual: <%v>", err)
+			}
+
+			// podNamespace is not needed here for Azurefile as the volumeName generated will be the same with or without podNamespace
+			volumeSpec, err = csimigration.TranslateInTreeSpecToCSI(volumeSpec, "" /* podNamespace */, adc.intreeToCSITranslator)
+			if err != nil {
+				t.Fatalf("Run failed with error. Expected: <no error> Actual: <%v>", err)
+			}
+		}
+		volumeName, _ := volumeutil.GetUniqueVolumeNameFromSpec(plugin, volumeSpec)
+		if volumeName != v1.UniqueVolumeName(tc.expectVolumeName) {
+			t.Fatalf("Expect to get volumeName \"kubernetes.io/gce-pd\", but got: %s", volumeName)
+		}
 	}
 
 }
