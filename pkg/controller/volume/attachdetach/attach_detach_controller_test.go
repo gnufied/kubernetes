@@ -355,43 +355,25 @@ type vaTest struct {
 	vaName            string
 	vaNodeName        string
 	vaAttachStatus    bool
+	csiMigration      bool
 	expected_attaches map[string][]string
 	expected_detaches map[string][]string
 }
 
 func Test_ADC_VolumeAttachmentRecovery(t *testing.T) {
 	for _, tc := range []vaTest{
-		{ // pod is scheduled
-			testName:          "Scheduled pod",
-			volName:           "vol1",
+		{
+			testName:          "Scheduled pod for gce-pd migrated plugin",
+			volName:           "gce-vol1",
 			podName:           "pod1",
 			podNodeName:       "mynode-1",
 			pvName:            "pv1",
 			vaName:            "va1",
 			vaNodeName:        "mynode-1",
 			vaAttachStatus:    false,
-			expected_attaches: map[string][]string{"mynode-1": {"vol1"}},
+			csiMigration:      true,
+			expected_attaches: map[string][]string{"mynode-1": {"gce-vol1"}},
 			expected_detaches: map[string][]string{},
-		},
-		{ // pod is deleted, attach status:true, verify dangling volume is detached
-			testName:          "VA status is attached",
-			volName:           "vol1",
-			pvName:            "pv1",
-			vaName:            "va1",
-			vaNodeName:        "mynode-1",
-			vaAttachStatus:    true,
-			expected_attaches: map[string][]string{},
-			expected_detaches: map[string][]string{"mynode-1": {"vol1"}},
-		},
-		{ // pod is deleted, attach status:false, verify dangling volume is detached
-			testName:          "VA status is unattached",
-			volName:           "vol1",
-			pvName:            "pv1",
-			vaName:            "va1",
-			vaNodeName:        "mynode-1",
-			vaAttachStatus:    false,
-			expected_attaches: map[string][]string{},
-			expected_detaches: map[string][]string{"mynode-1": {"vol1"}},
 		},
 	} {
 		t.Run(tc.testName, func(t *testing.T) {
@@ -401,9 +383,16 @@ func Test_ADC_VolumeAttachmentRecovery(t *testing.T) {
 }
 
 func volumeAttachmentRecoveryTestCase(t *testing.T, tc vaTest) {
+	defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.CSIMigration, tc.csiMigration)()
+	defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.CSIMigrationGCE, tc.csiMigration)()
+
 	fakeKubeClient := controllervolumetesting.CreateTestClient()
 	informerFactory := informers.NewSharedInformerFactory(fakeKubeClient, time.Second*1)
 	plugins := controllervolumetesting.CreateTestPlugin()
+	if tc.volName == "gce-vol1" {
+		plugins = gcepd.ProbeVolumePlugins()
+		plugins = append(plugins, csi.ProbeVolumePlugins()...)
+	}
 	nodeInformer := informerFactory.Core().V1().Nodes().Informer()
 	podInformer := informerFactory.Core().V1().Pods().Informer()
 	pvInformer := informerFactory.Core().V1().PersistentVolumes().Informer()
@@ -504,8 +493,28 @@ func volumeAttachmentRecoveryTestCase(t *testing.T, tc vaTest) {
 	go adc.desiredStateOfWorldPopulator.Run(stopCh)
 	defer close(stopCh)
 
-	// Verify if expected attaches and detaches have happened
-	testPlugin := plugins[0].(*controllervolumetesting.TestPlugin)
+	//attachedVolumes := adc.actualStateOfWorld.GetAttachedVolumes()
+	//t.Logf("attached volumes number is: %d", len(attachedVolumes))
+
+
+	// for gce-pd volumes we can't verify attach/detach calls
+	if tc.volName == "gce-vol1" {
+		verifyExpectedVolumes(t, adc, tc)
+	} else {
+		// Verify if expected attaches and detaches have happened
+		testPlugin := plugins[0].(*controllervolumetesting.TestPlugin)
+		verifyAttachDetachCalls(t, testPlugin, tc)
+	}
+}
+
+func verifyExpectedVolumes(t *testing.T, adc *attachDetachController, tc vaTest) {
+	for tries := 0; tries <= 10; tries++ { // wait & try few times before failing the test
+		attachedVolumes := adc.actualStateOfWorld.GetAttachedVolumes()
+		// check if attached volumes are what we expect
+	}
+}
+
+func verifyAttachDetachCalls(t *testing.T, testPlugin *controllervolumetesting.TestPlugin, tc vaTest) {
 	for tries := 0; tries <= 10; tries++ { // wait & try few times before failing the test
 		expected_op_map := tc.expected_attaches
 		plugin_map := testPlugin.GetAttachedVolumes()
@@ -550,7 +559,6 @@ func volumeAttachmentRecoveryTestCase(t *testing.T, tc vaTest) {
 	if testPlugin.GetErrorEncountered() {
 		t.Fatalf("Fatal error encountered in the testing volume plugin")
 	}
-
 }
 
 func Test_VARecovery_CSIMigration(t *testing.T) {
