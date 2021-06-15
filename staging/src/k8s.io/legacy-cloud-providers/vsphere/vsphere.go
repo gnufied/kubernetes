@@ -936,6 +936,7 @@ func (vs *VSphere) AttachDisk(vmDiskPath string, storagePolicyName string, nodeN
 			return "", err
 		}
 
+		klog.Infof("hemant - attach canonicalpath is: %s", vmDiskPath)
 		// try and get canonical path for disk and if we can't throw error
 		vmDiskPath, err = getcanonicalVolumePath(ctx, vm.Datacenter, vmDiskPath)
 		if err != nil {
@@ -1458,6 +1459,7 @@ func (vs *VSphere) CreateVolume(volumeOptions *vclib.VolumeOptions) (canonicalVo
 		}
 		// Get the canonical path for the volume path.
 		canonicalVolumePath, err = getcanonicalVolumePath(ctx, datastoreInfo.Datacenter, volumePath)
+		klog.Infof("hemant - incoming canonical path is: %s", canonicalVolumePath)
 		if err != nil {
 			klog.Errorf("Failed to get canonical vsphere volume path for volume: %s with volumeOptions: %+v on datastore: %s. err: %+v", volumePath, volumeOptions, ds, err)
 			return "", err
@@ -1466,6 +1468,7 @@ func (vs *VSphere) CreateVolume(volumeOptions *vclib.VolumeOptions) (canonicalVo
 			// If datastore is within cluster, add cluster path to the volumePath
 			canonicalVolumePath = strings.Replace(canonicalVolumePath, filepath.Base(datastoreName), datastoreName, 1)
 		}
+		klog.Infof("hemant - final incoming canonical path is: %s", canonicalVolumePath)
 		return canonicalVolumePath, nil
 	}
 	requestTime := time.Now()
