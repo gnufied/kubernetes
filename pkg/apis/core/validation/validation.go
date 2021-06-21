@@ -2068,8 +2068,8 @@ func ValidatePersistentVolumeClaimUpdate(newPvc, oldPvc *core.PersistentVolumeCl
 				// This validation permits reducing pvc requested size up to capacity recorded in pvc.status
 				// so that users can recover from volume expansion failure, but Kubernetes does not actually
 				// support volume shrinking
-				if newSize.Cmp(statusSize) < 0 {
-					allErrs = append(allErrs, field.Forbidden(field.NewPath("spec", "resources", "requests", "storage"), "field can not be less than Status.Capacity"))
+				if newSize.Cmp(statusSize) <= 0 {
+					allErrs = append(allErrs, field.Forbidden(field.NewPath("spec", "resources", "requests", "storage"), "field must be greater than Status.Capacity"))
 				}
 			}
 		}
