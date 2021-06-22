@@ -1626,39 +1626,43 @@
               "reason": "513",
               "message": "514"
             }
-          ]
+          ],
+          "resizeStatus": "(DǺM變ǣƆ鄾篏q鴥络@",
+          "allocatedResources": {
+            "XuěȯAiȚ浾@D[R2%ȅǳ": "897"
+          }
         }
       }
     ],
     "serviceName": "515",
-    "podManagementPolicy": "(DǺM變ǣƆ鄾篏q鴥络@",
+    "podManagementPolicy": "牦[闤ŬNĻ",
     "updateStrategy": {
-      "type": "撇Ȥ寭ƉɫǅXSgƈɿ1",
+      "type": "ĕ",
       "rollingUpdate": {
-        "partition": -578791744
+        "partition": -506660990
       }
     },
-    "revisionHistoryLimit": 1747963012,
-    "minReadySeconds": 227754708
+    "revisionHistoryLimit": -1742186708,
+    "minReadySeconds": 428141081
   },
   "status": {
-    "observedGeneration": 3726357650029194772,
-    "replicas": -2017431863,
-    "readyReplicas": -1391197036,
-    "currentReplicas": -819211803,
-    "updatedReplicas": -644991728,
+    "observedGeneration": -2970602096485444086,
+    "replicas": -1994313473,
+    "readyReplicas": -915953389,
+    "currentReplicas": -1592284057,
+    "updatedReplicas": -11578822,
     "currentRevision": "516",
     "updateRevision": "517",
-    "collisionCount": 318464433,
+    "collisionCount": -252349812,
     "conditions": [
       {
-        "type": "ĕ",
-        "status": "Īɱ|åȧ$Ĥ龌帲笁銭1ÂơHđ\"-劺",
-        "lastTransitionTime": "2209-09-04T06:38:38Z",
+        "type": "獪霛圦Ƶ",
+        "status": "\"",
+        "lastTransitionTime": "2926-09-12T01:05:44Z",
         "reason": "518",
         "message": "519"
       }
     ],
-    "availableReplicas": 1180728433
+    "availableReplicas": 63911524
   }
 }

@@ -55,6 +55,7 @@
         "expirationSeconds": -8506428344202195448
       }
     ],
-    "requiresRepublish": false
+    "requiresRepublish": false,
+    "recoveryFromExpansionFailure": true
   }
 }

@@ -31,10 +31,10 @@ metadata:
   selfLink: "5"
   uid: "7"
 spec:
-  minReadySeconds: 227754708
-  podManagementPolicy: (DǺM變ǣƆ鄾篏q鴥络@
+  minReadySeconds: 428141081
+  podManagementPolicy: 牦[闤ŬNĻ
   replicas: 896585016
-  revisionHistoryLimit: 1747963012
+  revisionHistoryLimit: -1742186708
   selector:
     matchExpressions:
     - key: 50-u--25cu87--r7p-w1e67-8pj5t-kl-v0q6b68--nu5oii38fn-8.629b-jd-8c45-0-8--6n--w0--w---196g8d--iv1-5--5ht-a-29--0qso796/3___47._49pIB_o61ISU4--A_.XK_._M99
@@ -1054,8 +1054,8 @@ spec:
           volumePath: "103"
   updateStrategy:
     rollingUpdate:
-      partition: -578791744
-    type: 撇Ȥ寭ƉɫǅXSgƈɿ1
+      partition: -506660990
+    type: ĕ
   volumeClaimTemplates:
   - metadata:
       annotations:
@@ -1111,6 +1111,8 @@ spec:
     status:
       accessModes:
       - ""
+      allocatedResources:
+        XuěȯAiȚ浾@D[R2%ȅǳ: "897"
       capacity:
         蟀贑!ǃȥ瓤骁ȩ: "486"
       conditions:
@@ -1121,19 +1123,20 @@ spec:
         status: 貂ĝ,梙Ŭ贩濑bħ瓌L綡簏Ʉ
         type: 儲ȃ<Ǆ噻ȁ隞ĻȀ拞抵<躁ĄȐ煷叺
       phase: VǕ酈t史C<镼ƶƭ
+      resizeStatus: (DǺM變ǣƆ鄾篏q鴥络@
 status:
-  availableReplicas: -230316059
-  collisionCount: -658674406
+  availableReplicas: -1111280677
+  collisionCount: -1258304803
   conditions:
-  - lastTransitionTime: "1998-10-20T01:25:38Z"
+  - lastTransitionTime: "2748-06-12T22:27:56Z"
     message: "519"
     reason: "518"
-    status: 砽§^Dê婼SƸ炃&-Ƹ绿
-    type: ƧĪɱ|åȧ$Ĥ龌帲笁銭1ÂơHđ"
-  currentReplicas: -906614126
+    status: 婼SƸ炃&-Ƹ绿浠穸æǷ^ɘʘ?s
+    type: ÂơHđ"-劺bY伂
+  currentReplicas: -1905218436
   currentRevision: "516"
-  observedGeneration: 2597642487843996253
-  readyReplicas: -1233364344
-  replicas: -1579944009
+  observedGeneration: -3029702048287461474
+  readyReplicas: 1914643625
+  replicas: 1808522007
   updateRevision: "517"
-  updatedReplicas: -741018201
+  updatedReplicas: 1795369246

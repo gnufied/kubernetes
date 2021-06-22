@@ -34,6 +34,7 @@ spec:
   attachRequired: false
   fsGroupPolicy: /ʕVŚ(ĿȊ甞谐颋ǅSǡ
   podInfoOnMount: false
+  recoveryFromExpansionFailure: true
   requiresRepublish: false
   storageCapacity: true
   tokenRequests:
