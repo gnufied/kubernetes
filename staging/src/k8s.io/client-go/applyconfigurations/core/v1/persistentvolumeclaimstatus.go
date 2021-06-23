@@ -29,7 +29,6 @@ type PersistentVolumeClaimStatusApplyConfiguration struct {
 	AccessModes        []v1.PersistentVolumeAccessMode                    `json:"accessModes,omitempty"`
 	Capacity           *v1.ResourceList                                   `json:"capacity,omitempty"`
 	Conditions         []PersistentVolumeClaimConditionApplyConfiguration `json:"conditions,omitempty"`
-	ResizeStatus       *v1.VolumeResizeStatusType                         `json:"resizeStatus,omitempty"`
 	AllocatedResources *v1.ResourceList                                   `json:"allocatedResources,omitempty"`
 }
 
@@ -75,14 +74,6 @@ func (b *PersistentVolumeClaimStatusApplyConfiguration) WithConditions(values ..
 		}
 		b.Conditions = append(b.Conditions, *values[i])
 	}
-	return b
-}
-
-// WithResizeStatus sets the ResizeStatus field in the declarative configuration to the given value
-// and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the ResizeStatus field is set to the value of the last call.
-func (b *PersistentVolumeClaimStatusApplyConfiguration) WithResizeStatus(value v1.VolumeResizeStatusType) *PersistentVolumeClaimStatusApplyConfiguration {
-	b.ResizeStatus = &value
 	return b
 }
 
