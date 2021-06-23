@@ -2117,6 +2117,12 @@ func ValidatePersistentVolumeClaimStatusUpdate(newPvc, oldPvc *core.PersistentVo
 	for r, qty := range newPvc.Status.Capacity {
 		allErrs = append(allErrs, validateBasicResource(qty, capPath.Key(string(r)))...)
 	}
+	if utilfeature.DefaultFeatureGate.Enabled(features.RecoverVolumeExpansionFailure) {
+		allocPath := field.NewPath("status", "allocatedResources")
+		for r, qty := range newPvc.Status.AllocatedResources {
+			allErrs = append(allErrs, validateBasicResource(qty, allocPath.Key(string(r)))...)
+		}
+	}
 	return allErrs
 }
 

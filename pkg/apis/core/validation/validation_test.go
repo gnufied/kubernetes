@@ -14468,11 +14468,52 @@ func TestValidatePersistentVolumeClaimStatusUpdate(t *testing.T) {
 			{Type: core.PersistentVolumeClaimResizing, Status: core.ConditionTrue},
 		},
 	})
+	validAllocatedResources := testVolumeClaimWithStatus("foo", "ns", core.PersistentVolumeClaimSpec{
+		AccessModes: []core.PersistentVolumeAccessMode{
+			core.ReadWriteOnce,
+			core.ReadOnlyMany,
+		},
+		Resources: core.ResourceRequirements{
+			Requests: core.ResourceList{
+				core.ResourceName(core.ResourceStorage): resource.MustParse("10G"),
+			},
+		},
+	}, core.PersistentVolumeClaimStatus{
+		Phase: core.ClaimPending,
+		Conditions: []core.PersistentVolumeClaimCondition{
+			{Type: core.PersistentVolumeClaimResizing, Status: core.ConditionTrue},
+		},
+		AllocatedResources: core.ResourceList{
+			core.ResourceName(core.ResourceStorage): resource.MustParse("10G"),
+		},
+	})
+
+	invalidAllocatedResources := testVolumeClaimWithStatus("foo", "ns", core.PersistentVolumeClaimSpec{
+		AccessModes: []core.PersistentVolumeAccessMode{
+			core.ReadWriteOnce,
+			core.ReadOnlyMany,
+		},
+		Resources: core.ResourceRequirements{
+			Requests: core.ResourceList{
+				core.ResourceName(core.ResourceStorage): resource.MustParse("10G"),
+			},
+		},
+	}, core.PersistentVolumeClaimStatus{
+		Phase: core.ClaimPending,
+		Conditions: []core.PersistentVolumeClaimCondition{
+			{Type: core.PersistentVolumeClaimResizing, Status: core.ConditionTrue},
+		},
+		AllocatedResources: core.ResourceList{
+			core.ResourceName(core.ResourceStorage): resource.MustParse("-10G"),
+		},
+	})
+
 	scenarios := map[string]struct {
-		isExpectedFailure bool
-		oldClaim          *core.PersistentVolumeClaim
-		newClaim          *core.PersistentVolumeClaim
-		enableResize      bool
+		isExpectedFailure          bool
+		oldClaim                   *core.PersistentVolumeClaim
+		newClaim                   *core.PersistentVolumeClaim
+		enableResize               bool
+		enableRecoverFromExpansion bool
 	}{
 		"condition-update-with-enabled-feature-gate": {
 			isExpectedFailure: false,
@@ -14480,9 +14521,24 @@ func TestValidatePersistentVolumeClaimStatusUpdate(t *testing.T) {
 			newClaim:          validConditionUpdate,
 			enableResize:      true,
 		},
+		"status-update-with-valid-allocatedResources-feature-enabled": {
+			isExpectedFailure:          false,
+			oldClaim:                   validClaim,
+			newClaim:                   validAllocatedResources,
+			enableResize:               true,
+			enableRecoverFromExpansion: true,
+		},
+		"status-update-with-invalid-allocatedResources-feature-enabled": {
+			isExpectedFailure:          true,
+			oldClaim:                   validClaim,
+			newClaim:                   invalidAllocatedResources,
+			enableResize:               true,
+			enableRecoverFromExpansion: true,
+		},
 	}
 	for name, scenario := range scenarios {
 		t.Run(name, func(t *testing.T) {
+			defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.RecoverVolumeExpansionFailure, scenario.enableRecoverFromExpansion)()
 			// ensure we have a resource version specified for updates
 			scenario.oldClaim.ResourceVersion = "1"
 			scenario.newClaim.ResourceVersion = "1"
