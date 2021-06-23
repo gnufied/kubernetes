@@ -29,9 +29,17 @@ const (
 
 // DropDisabledFields removes disabled fields from the pvc spec.
 // This should be called from PrepareForCreate/PrepareForUpdate for all resources containing a pvc spec.
-func DropDisabledFields(pvcSpec, oldPVCSpec *core.PersistentVolumeClaimSpec) {
+func DropDisabledFields(pvc, oldPVC *core.PersistentVolumeClaim) {
+	pvcSpec := &pvc.Spec
+	var oldPVCSpec *core.PersistentVolumeClaimSpec
+	if oldPVC != nil {
+		oldPVCSpec = &oldPVC.Spec
+	}
 	if !dataSourceIsEnabled(pvcSpec) && !dataSourceInUse(oldPVCSpec) {
 		pvcSpec.DataSource = nil
+	}
+	if !utilfeature.DefaultFeatureGate.Enabled(features.RecoverVolumeExpansionFailure) && !allocatedResourcesInUse(oldPVC) {
+		pvc.Status.AllocatedResources = nil
 	}
 }
 
@@ -81,4 +89,16 @@ func SetAllocatedResources(pvc, oldPVC *core.PersistentVolumeClaim) {
 			return
 		}
 	}
+}
+
+func allocatedResourcesInUse(oldPVC *core.PersistentVolumeClaim) bool {
+	if oldPVC == nil {
+		return false
+	}
+
+	if oldPVC.Status.AllocatedResources != nil {
+		return true
+	}
+
+	return false
 }

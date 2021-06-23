@@ -25,6 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	quota "k8s.io/apiserver/pkg/quota/v1"
 	"k8s.io/apiserver/pkg/quota/v1/generic"
+	"k8s.io/kubernetes/pkg/apis/core"
 	api "k8s.io/kubernetes/pkg/apis/core"
 )
 
@@ -77,6 +78,17 @@ func TestPersistentVolumeClaimEvaluatorUsage(t *testing.T) {
 		StorageClassName: &classGold,
 	})
 
+	validPVCWithAllocatedResources := testVolumeClaim("foo", "ns", api.PersistentVolumeClaimSpec{
+		Resources: api.ResourceRequirements{
+			Requests: api.ResourceList{
+				core.ResourceStorage: resource.MustParse("5G"),
+			},
+		},
+	})
+	validPVCWithAllocatedResources.Status.AllocatedResources = api.ResourceList{
+		api.ResourceName(api.ResourceStorage): resource.MustParse("10G"),
+	}
+
 	validClaimWithNonIntegerStorage := validClaim.DeepCopy()
 	validClaimWithNonIntegerStorage.Spec.Resources.Requests[api.ResourceName(api.ResourceStorage)] = resource.MustParse("1001m")
 
@@ -122,6 +134,14 @@ func TestPersistentVolumeClaimEvaluatorUsage(t *testing.T) {
 				corev1.ResourcePersistentVolumeClaims:                                                             resource.MustParse("1"),
 				V1ResourceByStorageClass(classGold, corev1.ResourceRequestsStorage):                               resource.MustParse("2"), // 1001m -> 2
 				V1ResourceByStorageClass(classGold, corev1.ResourcePersistentVolumeClaims):                        resource.MustParse("1"),
+				generic.ObjectCountQuotaResourceNameFor(schema.GroupResource{Resource: "persistentvolumeclaims"}): resource.MustParse("1"),
+			},
+		},
+		"pvc-usage-higher-allocated-resource": {
+			pvc: validPVCWithAllocatedResources,
+			usage: corev1.ResourceList{
+				corev1.ResourceRequestsStorage:        resource.MustParse("10G"),
+				corev1.ResourcePersistentVolumeClaims: resource.MustParse("1"),
 				generic.ObjectCountQuotaResourceNameFor(schema.GroupResource{Resource: "persistentvolumeclaims"}): resource.MustParse("1"),
 			},
 		},

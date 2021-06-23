@@ -20,8 +20,6 @@ import (
 	"fmt"
 	"strings"
 
-	"k8s.io/klog/v2"
-
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -170,8 +168,6 @@ func (p *pvcEvaluator) Usage(item runtime.Object) (corev1.ResourceList, error) {
 			result[storageClassStorage] = *requestedStorage
 		}
 	}
-
-	klog.Infof("hemant pvc quota is: %+v", requestedStorage)
 
 	return result, nil
 }

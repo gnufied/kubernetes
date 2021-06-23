@@ -23,6 +23,8 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
+	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/apimachinery/pkg/util/diff"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	featuregatetesting "k8s.io/component-base/featuregate/testing"
 	"k8s.io/kubernetes/pkg/apis/core"
@@ -80,11 +82,7 @@ func TestDropDisabledSnapshotDataSource(t *testing.T) {
 			}
 
 			t.Run(fmt.Sprintf("old pvc %v, new pvc %v", oldpvcInfo.description, newpvcInfo.description), func(t *testing.T) {
-				var oldpvcSpec *core.PersistentVolumeClaimSpec
-				if oldpvc != nil {
-					oldpvcSpec = &oldpvc.Spec
-				}
-				DropDisabledFields(&newpvc.Spec, oldpvcSpec)
+				DropDisabledFields(newpvc, oldpvc)
 
 				// old pvc should never be changed
 				if !reflect.DeepEqual(oldpvc, oldpvcInfo.pvc()) {
@@ -153,8 +151,9 @@ func TestPVCDataSourceSpecFilter(t *testing.T) {
 
 	for testName, test := range tests {
 		t.Run(testName, func(t *testing.T) {
-			DropDisabledFields(&test.spec, nil)
-			if test.spec.DataSource != test.want {
+			pvc := &core.PersistentVolumeClaim{Spec: test.spec}
+			DropDisabledFields(pvc, nil)
+			if pvc.Spec.DataSource != test.want {
 				t.Errorf("expected drop datasource condition was not met, test: %s, spec: %v, expected: %v", testName, test.spec, test.want)
 			}
 
@@ -224,11 +223,87 @@ func TestAnyDataSourceFilter(t *testing.T) {
 	for testName, test := range tests {
 		t.Run(testName, func(t *testing.T) {
 			defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.AnyVolumeDataSource, test.anyEnabled)()
-			DropDisabledFields(&test.spec, nil)
-			if test.spec.DataSource != test.want {
+			pvc := &core.PersistentVolumeClaim{Spec: test.spec}
+			DropDisabledFields(pvc, nil)
+			if pvc.Spec.DataSource != test.want {
 				t.Errorf("expected condition was not met, test: %s, anyEnabled: %v, spec: %v, expected: %v",
 					testName, test.anyEnabled, test.spec, test.want)
 			}
 		})
+	}
+}
+
+func TestDropAllocatedResources(t *testing.T) {
+	tests := []struct {
+		name     string
+		feature  bool
+		pvc      *core.PersistentVolumeClaim
+		oldPVC   *core.PersistentVolumeClaim
+		expected *core.PersistentVolumeClaim
+	}{
+		{
+			name:     "for:newPVC=hasfield,oldPVC=doesnot,featuregate=false; should drop field",
+			feature:  false,
+			pvc:      withAllocatedResource("5G"),
+			oldPVC:   getPVC(),
+			expected: getPVC(),
+		},
+		{
+			name:     "for:newPVC=hasfield,oldPVC=doesnot,featuregate=true; should keep field",
+			feature:  true,
+			pvc:      withAllocatedResource("5G"),
+			oldPVC:   getPVC(),
+			expected: withAllocatedResource("5G"),
+		},
+		{
+			name:     "for:newPVC=hasfield,oldPVC=hasfield,featuregate=false; should keep field",
+			feature:  false,
+			pvc:      withAllocatedResource("10G"),
+			oldPVC:   withAllocatedResource("5G"),
+			expected: withAllocatedResource("10G"),
+		},
+		{
+			name:     "for:newPVC=hasfield,oldPVC=nil,featuregate=false; should drop field",
+			feature:  false,
+			pvc:      withAllocatedResource("5G"),
+			oldPVC:   nil,
+			expected: getPVC(),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.RecoverVolumeExpansionFailure, test.feature)()
+
+			DropDisabledFields(test.pvc, test.oldPVC)
+
+			if !reflect.DeepEqual(*test.expected, *test.pvc) {
+				t.Errorf("Unexpected change: %+v", diff.ObjectDiff(test.expected, test.pvc))
+			}
+		})
+	}
+}
+
+func getPVC() *core.PersistentVolumeClaim {
+	return &core.PersistentVolumeClaim{}
+}
+
+func withResource(s *core.PersistentVolumeClaimSpec, q string) *core.PersistentVolumeClaimSpec {
+	sc := s.DeepCopy()
+	sc.Resources = core.ResourceRequirements{
+		Requests: core.ResourceList{
+			core.ResourceStorage: resource.MustParse(q),
+		},
+	}
+	return sc
+}
+
+func withAllocatedResource(q string) *core.PersistentVolumeClaim {
+	return &core.PersistentVolumeClaim{
+		Status: core.PersistentVolumeClaimStatus{
+			AllocatedResources: core.ResourceList{
+				core.ResourceStorage: resource.MustParse(q),
+			},
+		},
 	}
 }

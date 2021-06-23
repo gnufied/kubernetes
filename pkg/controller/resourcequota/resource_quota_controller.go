@@ -338,7 +338,6 @@ func (rq *Controller) syncResourceQuota(resourceQuota *v1.ResourceQuota) (err er
 		errs = append(errs, err)
 	}
 
-	klog.Infof("hemant - 3. new usage is: %+v", newUsage)
 	for key, value := range newUsage {
 		used[key] = value
 	}
@@ -359,7 +358,6 @@ func (rq *Controller) syncResourceQuota(resourceQuota *v1.ResourceQuota) (err er
 
 	// there was a change observed by this controller that requires we update quota
 	if dirty {
-		klog.Infof("hemant 4. dirty and updating quota with: %+v", usage)
 		_, err = rq.rqClient.ResourceQuotas(usage.Namespace).UpdateStatus(context.TODO(), usage, metav1.UpdateOptions{})
 		if err != nil {
 			errs = append(errs, err)
@@ -375,8 +373,6 @@ func (rq *Controller) replenishQuota(groupResource schema.GroupResource, namespa
 	if evaluator == nil {
 		return
 	}
-
-	klog.Infof("hemant 5. calling replinish quota now")
 
 	// check if this namespace even has a quota...
 	resourceQuotas, err := rq.rqLister.ResourceQuotas(namespace).List(labels.Everything())
