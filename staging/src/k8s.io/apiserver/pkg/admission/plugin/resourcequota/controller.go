@@ -228,6 +228,7 @@ func (e *quotaEvaluator) checkQuotas(quotas []corev1.ResourceQuota, admissionAtt
 			admissionAttribute.result = err
 			continue
 		}
+		klog.Infof("hemant - old quota is: %+v, new quota is: %+v", originalQuotas, newQuotas)
 
 		// Don't update quota for admissionAttributes that correspond to dry-run requests
 		if admissionAttribute.attributes.IsDryRun() {
