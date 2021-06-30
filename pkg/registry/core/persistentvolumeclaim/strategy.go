@@ -64,8 +64,7 @@ func (persistentvolumeclaimStrategy) GetResetFields() map[fieldpath.APIVersion]*
 func (persistentvolumeclaimStrategy) PrepareForCreate(ctx context.Context, obj runtime.Object) {
 	pvc := obj.(*api.PersistentVolumeClaim)
 	pvc.Status = api.PersistentVolumeClaimStatus{}
-	pvcutil.SetAllocatedResources(pvc, nil)
-	pvcutil.DropDisabledFields(&pvc.Spec, nil)
+	pvcutil.DropDisabledFields(&pvc.Spec)
 
 	// For data sources, we need to do 2 things to implement KEP 1495
 

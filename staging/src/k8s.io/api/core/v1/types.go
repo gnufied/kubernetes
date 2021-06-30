@@ -526,6 +526,16 @@ const (
 	PersistentVolumeClaimFileSystemResizePending PersistentVolumeClaimConditionType = "FileSystemResizePending"
 )
 
+type PersistentVolumeClaimResizeStatus string
+
+const (
+	PersistentVolumeClaimControllerExpansionInProgress PersistentVolumeClaimResizeStatus = "ControllerExpansionInProgress"
+	PersistentVolumeClaimControllerExpansionFailed     PersistentVolumeClaimResizeStatus = "ControllerExpansionFailed"
+	PersistentVolumeClaimNodeExpansionPending          PersistentVolumeClaimResizeStatus = "NodeExpansionPending"
+	PersistentVolumeClaimNodeExpansionInProgress       PersistentVolumeClaimResizeStatus = "NodeExpansionInProgress"
+	PersistentVolumeClaimNodeExpansionFailed           PersistentVolumeClaimResizeStatus = "NodeExpansionFailed"
+)
+
 // PersistentVolumeClaimCondition contails details about state of pvc
 type PersistentVolumeClaimCondition struct {
 	Type   PersistentVolumeClaimConditionType `json:"type" protobuf:"bytes,1,opt,name=type,casttype=PersistentVolumeClaimConditionType"`
@@ -574,6 +584,9 @@ type PersistentVolumeClaimStatus struct {
 	// This is an alpha field and requires enabling RecoverVolumeExpansionFailure feature.
 	// +optional
 	AllocatedResources ResourceList `json:"allocatedResources,omitempty" protobuf:"bytes,5,rep,name=allocatedResources,casttype=ResourceList,castkey=ResourceName"`
+	// ResizeStatus stores status of resize operation.
+	// +optional
+	ResizeStatus *PersistentVolumeClaimResizeStatus `json:"resizeStatus,omitempty" protobuf:"bytes,6,opt,name=resizeStatus,casttype=PersistentVolumeClaimResizeStatus"`
 }
 
 type PersistentVolumeAccessMode string

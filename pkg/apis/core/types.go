@@ -486,6 +486,16 @@ const (
 	PersistentVolumeClaimFileSystemResizePending PersistentVolumeClaimConditionType = "FileSystemResizePending"
 )
 
+type PersistentVolumeClaimResizeStatus string
+
+const (
+	PersistentVolumeClaimControllerExpansionInProgress PersistentVolumeClaimResizeStatus = "ControllerExpansionInProgress"
+	PersistentVolumeClaimControllerExpansionFailed     PersistentVolumeClaimResizeStatus = "ControllerExpansionFailed"
+	PersistentVolumeClaimNodeExpansionPending          PersistentVolumeClaimResizeStatus = "NodeExpansionPending"
+	PersistentVolumeClaimNodeExpansionInProgress       PersistentVolumeClaimResizeStatus = "NodeExpansionInProgress"
+	PersistentVolumeClaimNodeExpansionFailed           PersistentVolumeClaimResizeStatus = "NodeExpansionFailed"
+)
+
 // PersistentVolumeClaimCondition represents the current condition of PV claim
 type PersistentVolumeClaimCondition struct {
 	Type   PersistentVolumeClaimConditionType
@@ -523,6 +533,8 @@ type PersistentVolumeClaimStatus struct {
 	// This is an alpha field and requires enabling RecoverVolumeExpansionFailure feature.
 	// +optional
 	AllocatedResources ResourceList
+	// ResizeStatus stores status of resize operation
+	ResizeStatus *PersistentVolumeClaimResizeStatus
 }
 
 // PersistentVolumeAccessMode defines various access modes for PV.
