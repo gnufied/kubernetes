@@ -136,6 +136,7 @@ func NewMountError(mountErrorValue MountErrorType, format string, args ...interf
 type SafeFormatAndMount struct {
 	Interface
 	Exec utilexec.Interface
+	MkfsNodiscard bool
 }
 
 // FormatAndMount formats the given disk, if needed, and mounts it.

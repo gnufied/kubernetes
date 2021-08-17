@@ -313,12 +313,13 @@ func (attacher *gcePersistentDiskAttacher) MountDevice(spec *volume.Spec, device
 		return err
 	}
 
-	options := []string{}
+	options := []string{"discard"}
 	if readOnly {
 		options = append(options, "ro")
 	}
 	if notMnt {
 		diskMounter := volumeutil.NewSafeFormatAndMountFromHost(gcePersistentDiskPluginName, attacher.host)
+		diskMounter.MkfsNodiscard = true
 		mountOptions := volumeutil.MountOptionFromSpec(spec, options...)
 		err = diskMounter.FormatAndMount(devicePath, deviceMountPath, volumeSource.FSType, mountOptions)
 		if err != nil {
