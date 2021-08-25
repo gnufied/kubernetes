@@ -935,9 +935,11 @@ func (vs *VSphere) AttachDisk(vmDiskPath string, storagePolicyName string, nodeN
 
 		// try and get canonical path for disk and if we can't use provided vmDiskPath
 		canonicalPath, pathFetchErr := getcanonicalVolumePath(ctx, vm.Datacenter, vmDiskPath)
-		if canonicalPath != "" && pathFetchErr == nil {
-			vmDiskPath = canonicalPath
+		if pathFetchErr != nil {
+			klog.Errorf("failed to get canonical path for %s on node %s: %v", vmDiskPath, convertToString(nodeName), pathFetchErr)
+			return "", pathFetchErr
 		}
+		vmDiskPath = canonicalPath
 
 		diskUUID, err = vm.AttachDisk(ctx, vmDiskPath, &vclib.VolumeOptions{SCSIControllerType: vclib.PVSCSIControllerType, StoragePolicyName: storagePolicyName})
 		if err != nil {
