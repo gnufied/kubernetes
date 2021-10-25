@@ -204,7 +204,7 @@ func MarkFSResizeFinished(
 }
 
 func MarkNodeExpansionFailed(pvc *v1.PersistentVolumeClaim, kubeClient clientset.Interface) error {
-	expansionFailedOnNode := v1.PersistentVolumeClaimResizeFailedOnNode
+	expansionFailedOnNode := v1.PersistentVolumeClaimNodeExpansionFailed
 	newPVC := pvc.DeepCopy()
 	newPVC.Status.ResizeStatus = &expansionFailedOnNode
 	_, err := PatchPVCStatus(pvc /*oldPVC*/, newPVC, kubeClient)

@@ -2751,7 +2751,7 @@ message PersistentVolumeClaimStatus {
   // +optional
   map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> allocatedResources = 5;
 
-  // ResizeStatus stores status of resize operation
+  // ResizeStatus stores status of resize operation.
   // +optional
   optional string resizeStatus = 6;
 }
