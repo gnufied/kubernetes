@@ -28,7 +28,9 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/strategicpatch"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	clientset "k8s.io/client-go/kubernetes"
+	"k8s.io/kubernetes/pkg/features"
 	"k8s.io/kubernetes/pkg/volume"
 	volumetypes "k8s.io/kubernetes/pkg/volume/util/types"
 	"k8s.io/mount-utils"
@@ -147,6 +149,23 @@ func MarkResizeInProgressWithResizer(
 	return PatchPVCStatus(pvc /*oldPVC*/, newPVC, kubeClient)
 }
 
+func MarkControllerReisizeInProgress(pvc *v1.PersistentVolumeClaim, resizerName string, newSize resource.Quantity, kubeClient clientset.Interface) (*v1.PersistentVolumeClaim, error) {
+	// Mark PVC as Resize Started
+	progressCondition := v1.PersistentVolumeClaimCondition{
+		Type:               v1.PersistentVolumeClaimResizing,
+		Status:             v1.ConditionTrue,
+		LastTransitionTime: metav1.Now(),
+	}
+	controllerExpansionInProgress := v1.PersistentVolumeClaimControllerExpansionInProgress
+	conditions := []v1.PersistentVolumeClaimCondition{progressCondition}
+	newPVC := pvc.DeepCopy()
+	newPVC = MergeResizeConditionOnPVC(newPVC, conditions)
+	newPVC.Status.ResizeStatus = &controllerExpansionInProgress
+	newPVC.Status.AllocatedResources[v1.ResourceStorage] = newSize
+	newPVC = setResizer(newPVC, resizerName)
+	return PatchPVCStatus(pvc /*oldPVC*/, newPVC, kubeClient)
+}
+
 // SetClaimResizer sets resizer annotation on PVC
 func SetClaimResizer(
 	pvc *v1.PersistentVolumeClaim,
@@ -177,6 +196,10 @@ func MarkForFSResize(
 	}
 	conditions := []v1.PersistentVolumeClaimCondition{pvcCondition}
 	newPVC := pvc.DeepCopy()
+	if utilfeature.DefaultFeatureGate.Enabled(features.RecoverVolumeExpansionFailure) {
+		expansionPendingOnNode := v1.PersistentVolumeClaimNodeExpansionPending
+		newPVC.Status.ResizeStatus = &expansionPendingOnNode
+	}
 	newPVC = MergeResizeConditionOnPVC(newPVC, conditions)
 	_, err := PatchPVCStatus(pvc /*oldPVC*/, newPVC, kubeClient)
 	return err
@@ -196,19 +219,70 @@ func MarkFSResizeFinished(
 	newSize resource.Quantity,
 	kubeClient clientset.Interface) error {
 	newPVC := pvc.DeepCopy()
+
 	newPVC.Status.Capacity[v1.ResourceStorage] = newSize
-	newPVC.Status.ResizeStatus = nil
+
+	// if RecoverVolumeExpansionFailure is enabled, we need to reset ResizeStatus back to nil
+	if utilfeature.DefaultFeatureGate.Enabled(features.RecoverVolumeExpansionFailure) {
+		newPVC.Status.ResizeStatus = nil
+	}
+
 	newPVC = MergeResizeConditionOnPVC(newPVC, []v1.PersistentVolumeClaimCondition{})
 	_, err := PatchPVCStatus(pvc /*oldPVC*/, newPVC, kubeClient)
 	return err
 }
 
-func MarkNodeExpansionFailed(pvc *v1.PersistentVolumeClaim, kubeClient clientset.Interface) error {
+func MarkControllerExpansionFailed(pvc *v1.PersistentVolumeClaim, kubeClient clientset.Interface) (*v1.PersistentVolumeClaim, error) {
+	expansionFailedOnController := v1.PersistentVolumeClaimControllerExpansionFailed
+	newPVC := pvc.DeepCopy()
+	newPVC.Status.ResizeStatus = &expansionFailedOnController
+	patchBytes, err := createPVCPatch(pvc, newPVC, false /* addResourceVersionCheck */)
+	if err != nil {
+		return pvc, fmt.Errorf("patchPVCStatus failed to patch PVC %q: %v", pvc.Name, err)
+	}
+
+	updatedClaim, updateErr := kubeClient.CoreV1().PersistentVolumeClaims(pvc.Namespace).
+		Patch(context.TODO(), pvc.Name, types.StrategicMergePatchType, patchBytes, metav1.PatchOptions{}, "status")
+	if updateErr != nil {
+		return pvc, fmt.Errorf("patchPVCStatus failed to patch PVC %q: %v", pvc.Name, updateErr)
+	}
+	return updatedClaim, nil
+}
+
+// MarkNodeExpansionFailed marks a PVC for node expansion as failed. Kubelet should not retry expansion
+// of volumes which are in failed state.
+func MarkNodeExpansionFailed(pvc *v1.PersistentVolumeClaim, kubeClient clientset.Interface) (*v1.PersistentVolumeClaim, error) {
+	// If RecoverVolumeExpansionFailure is not enabled then no need to set InProgress state
+	if !utilfeature.DefaultFeatureGate.Enabled(features.RecoverVolumeExpansionFailure) {
+		return pvc, nil
+	}
 	expansionFailedOnNode := v1.PersistentVolumeClaimNodeExpansionFailed
 	newPVC := pvc.DeepCopy()
 	newPVC.Status.ResizeStatus = &expansionFailedOnNode
-	_, err := PatchPVCStatus(pvc /*oldPVC*/, newPVC, kubeClient)
-	return err
+	patchBytes, err := createPVCPatch(pvc, newPVC, false /* addResourceVersionCheck */)
+	if err != nil {
+		return pvc, fmt.Errorf("patchPVCStatus failed to patch PVC %q: %v", pvc.Name, err)
+	}
+
+	updatedClaim, updateErr := kubeClient.CoreV1().PersistentVolumeClaims(pvc.Namespace).
+		Patch(context.TODO(), pvc.Name, types.StrategicMergePatchType, patchBytes, metav1.PatchOptions{}, "status")
+	if updateErr != nil {
+		return pvc, fmt.Errorf("patchPVCStatus failed to patch PVC %q: %v", pvc.Name, updateErr)
+	}
+	return updatedClaim, nil
+}
+
+// MarkNodeExpansionInProgress marks pvc expansion in progress on node
+func MarkNodeExpansionInProgress(pvc *v1.PersistentVolumeClaim, kubeClient clientset.Interface) (*v1.PersistentVolumeClaim, error) {
+	// If RecoverVolumeExpansionFailure is not enabled then no need to set InProgress state
+	if !utilfeature.DefaultFeatureGate.Enabled(features.RecoverVolumeExpansionFailure) {
+		return pvc, nil
+	}
+	nodeExpansionInProgress := v1.PersistentVolumeClaimNodeExpansionInProgress
+	newPVC := pvc.DeepCopy()
+	newPVC.Status.ResizeStatus = &nodeExpansionInProgress
+	updatedPVC, err := PatchPVCStatus(pvc /* oldPVC */, newPVC, kubeClient)
+	return updatedPVC, err
 }
 
 // PatchPVCStatus updates PVC status using PATCH verb
@@ -219,7 +293,7 @@ func PatchPVCStatus(
 	oldPVC *v1.PersistentVolumeClaim,
 	newPVC *v1.PersistentVolumeClaim,
 	kubeClient clientset.Interface) (*v1.PersistentVolumeClaim, error) {
-	patchBytes, err := createPVCPatch(oldPVC, newPVC)
+	patchBytes, err := createPVCPatch(oldPVC, newPVC, true /* addResourceVersionCheck */)
 	if err != nil {
 		return nil, fmt.Errorf("patchPVCStatus failed to patch PVC %q: %v", oldPVC.Name, err)
 	}
@@ -234,7 +308,7 @@ func PatchPVCStatus(
 
 func createPVCPatch(
 	oldPVC *v1.PersistentVolumeClaim,
-	newPVC *v1.PersistentVolumeClaim) ([]byte, error) {
+	newPVC *v1.PersistentVolumeClaim, addResourceVersionCheck bool) ([]byte, error) {
 	oldData, err := json.Marshal(oldPVC)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal old data: %v", err)
@@ -250,9 +324,11 @@ func createPVCPatch(
 		return nil, fmt.Errorf("failed to create 2 way merge patch: %v", err)
 	}
 
-	patchBytes, err = addResourceVersion(patchBytes, oldPVC.ResourceVersion)
-	if err != nil {
-		return nil, fmt.Errorf("failed to add resource version: %v", err)
+	if addResourceVersionCheck {
+		patchBytes, err = addResourceVersion(patchBytes, oldPVC.ResourceVersion)
+		if err != nil {
+			return nil, fmt.Errorf("failed to add resource version: %v", err)
+		}
 	}
 
 	return patchBytes, nil

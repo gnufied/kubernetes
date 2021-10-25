@@ -25,8 +25,11 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	quota "k8s.io/apiserver/pkg/quota/v1"
 	"k8s.io/apiserver/pkg/quota/v1/generic"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	featuregatetesting "k8s.io/component-base/featuregate/testing"
 	"k8s.io/kubernetes/pkg/apis/core"
 	api "k8s.io/kubernetes/pkg/apis/core"
+	"k8s.io/kubernetes/pkg/features"
 )
 
 func testVolumeClaim(name string, namespace string, spec api.PersistentVolumeClaimSpec) *api.PersistentVolumeClaim {
@@ -86,8 +89,9 @@ func TestPersistentVolumeClaimEvaluatorUsage(t *testing.T) {
 
 	evaluator := NewPersistentVolumeClaimEvaluator(nil)
 	testCases := map[string]struct {
-		pvc   *api.PersistentVolumeClaim
-		usage corev1.ResourceList
+		pvc                        *api.PersistentVolumeClaim
+		usage                      corev1.ResourceList
+		enableRecoverFromExpansion bool
 	}{
 		"pvc-usage": {
 			pvc: validClaim,
@@ -96,6 +100,7 @@ func TestPersistentVolumeClaimEvaluatorUsage(t *testing.T) {
 				corev1.ResourcePersistentVolumeClaims: resource.MustParse("1"),
 				generic.ObjectCountQuotaResourceNameFor(schema.GroupResource{Resource: "persistentvolumeclaims"}): resource.MustParse("1"),
 			},
+			enableRecoverFromExpansion: true,
 		},
 		"pvc-usage-by-class": {
 			pvc: validClaimByStorageClass,
@@ -106,6 +111,7 @@ func TestPersistentVolumeClaimEvaluatorUsage(t *testing.T) {
 				V1ResourceByStorageClass(classGold, corev1.ResourcePersistentVolumeClaims):                        resource.MustParse("1"),
 				generic.ObjectCountQuotaResourceNameFor(schema.GroupResource{Resource: "persistentvolumeclaims"}): resource.MustParse("1"),
 			},
+			enableRecoverFromExpansion: true,
 		},
 
 		"pvc-usage-rounded": {
@@ -115,6 +121,7 @@ func TestPersistentVolumeClaimEvaluatorUsage(t *testing.T) {
 				corev1.ResourcePersistentVolumeClaims: resource.MustParse("1"),
 				generic.ObjectCountQuotaResourceNameFor(schema.GroupResource{Resource: "persistentvolumeclaims"}): resource.MustParse("1"),
 			},
+			enableRecoverFromExpansion: true,
 		},
 		"pvc-usage-by-class-rounded": {
 			pvc: validClaimByStorageClassWithNonIntegerStorage,
@@ -125,6 +132,7 @@ func TestPersistentVolumeClaimEvaluatorUsage(t *testing.T) {
 				V1ResourceByStorageClass(classGold, corev1.ResourcePersistentVolumeClaims):                        resource.MustParse("1"),
 				generic.ObjectCountQuotaResourceNameFor(schema.GroupResource{Resource: "persistentvolumeclaims"}): resource.MustParse("1"),
 			},
+			enableRecoverFromExpansion: true,
 		},
 		"pvc-usage-higher-allocated-resource": {
 			pvc: getPVCWithAllocatedResource("5G", "10G"),
@@ -133,6 +141,7 @@ func TestPersistentVolumeClaimEvaluatorUsage(t *testing.T) {
 				corev1.ResourcePersistentVolumeClaims: resource.MustParse("1"),
 				generic.ObjectCountQuotaResourceNameFor(schema.GroupResource{Resource: "persistentvolumeclaims"}): resource.MustParse("1"),
 			},
+			enableRecoverFromExpansion: true,
 		},
 		"pvc-usage-lower-allocated-resource": {
 			pvc: getPVCWithAllocatedResource("10G", "5G"),
@@ -141,16 +150,21 @@ func TestPersistentVolumeClaimEvaluatorUsage(t *testing.T) {
 				corev1.ResourcePersistentVolumeClaims: resource.MustParse("1"),
 				generic.ObjectCountQuotaResourceNameFor(schema.GroupResource{Resource: "persistentvolumeclaims"}): resource.MustParse("1"),
 			},
+			enableRecoverFromExpansion: true,
 		},
 	}
 	for testName, testCase := range testCases {
-		actual, err := evaluator.Usage(testCase.pvc)
-		if err != nil {
-			t.Errorf("%s unexpected error: %v", testName, err)
-		}
-		if !quota.Equals(testCase.usage, actual) {
-			t.Errorf("%s expected:\n%v\n, actual:\n%v", testName, testCase.usage, actual)
-		}
+		t.Run(testName, func(t *testing.T) {
+			defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.RecoverVolumeExpansionFailure, testCase.enableRecoverFromExpansion)()
+			actual, err := evaluator.Usage(testCase.pvc)
+			if err != nil {
+				t.Errorf("%s unexpected error: %v", testName, err)
+			}
+			if !quota.Equals(testCase.usage, actual) {
+				t.Errorf("%s expected:\n%v\n, actual:\n%v", testName, testCase.usage, actual)
+			}
+		})
+
 	}
 }
 

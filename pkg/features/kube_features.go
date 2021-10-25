@@ -794,6 +794,7 @@ const (
 	PodAndContainerStatsFromCRI featuregate.Feature = "PodAndContainerStatsFromCRI"
 
 	// owner: @gnufied
+	// kep: https://http://kep.k8s.io/1790
 	// alpha: v1.23
 	//
 	// Allow users to recover from volume expansion failure

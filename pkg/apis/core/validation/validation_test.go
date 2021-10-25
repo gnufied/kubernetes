@@ -2144,7 +2144,7 @@ func TestValidatePersistentVolumeClaimUpdate(t *testing.T) {
 	for name, scenario := range scenarios {
 		t.Run(name, func(t *testing.T) {
 			defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.ExpandPersistentVolumes, scenario.enableResize)()
-			defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.RecoverVolumeExpansionFailure, scenario.enableResize)()
+			defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.RecoverVolumeExpansionFailure, scenario.enableRecoverFromExpansion)()
 			scenario.oldClaim.ResourceVersion = "1"
 			scenario.newClaim.ResourceVersion = "1"
 			opts := ValidationOptionsForPersistentVolumeClaim(scenario.newClaim, scenario.oldClaim)
@@ -2169,35 +2169,45 @@ func TestValidationOptionsForPersistentVolumeClaim(t *testing.T) {
 			oldPvc:                 nil,
 			enableReadWriteOncePod: true,
 			expectValidationOpts: PersistentVolumeClaimSpecValidationOptions{
-				AllowReadWriteOncePod: true,
+				AllowReadWriteOncePod:             true,
+				EnableExpansion:                   true,
+				EnableRecoverFromExpansionFailure: false,
 			},
 		},
 		"rwop allowed because feature enabled": {
 			oldPvc:                 pvcWithAccessModes([]core.PersistentVolumeAccessMode{core.ReadWriteOnce}),
 			enableReadWriteOncePod: true,
 			expectValidationOpts: PersistentVolumeClaimSpecValidationOptions{
-				AllowReadWriteOncePod: true,
+				AllowReadWriteOncePod:             true,
+				EnableExpansion:                   true,
+				EnableRecoverFromExpansionFailure: false,
 			},
 		},
 		"rwop not allowed because not used and feature disabled": {
 			oldPvc:                 pvcWithAccessModes([]core.PersistentVolumeAccessMode{core.ReadWriteOnce}),
 			enableReadWriteOncePod: false,
 			expectValidationOpts: PersistentVolumeClaimSpecValidationOptions{
-				AllowReadWriteOncePod: false,
+				AllowReadWriteOncePod:             false,
+				EnableExpansion:                   true,
+				EnableRecoverFromExpansionFailure: false,
 			},
 		},
 		"rwop allowed because used and feature enabled": {
 			oldPvc:                 pvcWithAccessModes([]core.PersistentVolumeAccessMode{core.ReadWriteOncePod}),
 			enableReadWriteOncePod: true,
 			expectValidationOpts: PersistentVolumeClaimSpecValidationOptions{
-				AllowReadWriteOncePod: true,
+				AllowReadWriteOncePod:             true,
+				EnableExpansion:                   true,
+				EnableRecoverFromExpansionFailure: false,
 			},
 		},
 		"rwop allowed because used and feature disabled": {
 			oldPvc:                 pvcWithAccessModes([]core.PersistentVolumeAccessMode{core.ReadWriteOncePod}),
 			enableReadWriteOncePod: false,
 			expectValidationOpts: PersistentVolumeClaimSpecValidationOptions{
-				AllowReadWriteOncePod: true,
+				AllowReadWriteOncePod:             true,
+				EnableExpansion:                   true,
+				EnableRecoverFromExpansionFailure: false,
 			},
 		},
 	}
@@ -15943,7 +15953,7 @@ func TestValidatePersistentVolumeClaimStatusUpdate(t *testing.T) {
 	}
 	for name, scenario := range scenarios {
 		t.Run(name, func(t *testing.T) {
-			validateOpts := PersistentVolumeClaimValidateOptions{
+			validateOpts := PersistentVolumeClaimSpecValidationOptions{
 				EnableRecoverFromExpansionFailure: scenario.enableRecoverFromExpansion,
 			}
 			// ensure we have a resource version specified for updates
