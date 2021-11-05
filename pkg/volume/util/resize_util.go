@@ -161,7 +161,7 @@ func MarkControllerReisizeInProgress(pvc *v1.PersistentVolumeClaim, resizerName 
 	newPVC := pvc.DeepCopy()
 	newPVC = MergeResizeConditionOnPVC(newPVC, conditions)
 	newPVC.Status.ResizeStatus = &controllerExpansionInProgress
-	newPVC.Status.AllocatedResources[v1.ResourceStorage] = newSize
+	newPVC.Status.AllocatedResources = v1.ResourceList{v1.ResourceStorage: newSize}
 	newPVC = setResizer(newPVC, resizerName)
 	return PatchPVCStatus(pvc /*oldPVC*/, newPVC, kubeClient)
 }
@@ -224,7 +224,8 @@ func MarkFSResizeFinished(
 
 	// if RecoverVolumeExpansionFailure is enabled, we need to reset ResizeStatus back to nil
 	if utilfeature.DefaultFeatureGate.Enabled(features.RecoverVolumeExpansionFailure) {
-		newPVC.Status.ResizeStatus = nil
+		expansionFinished := v1.PersistentVolumeClaimNoExpansionInProgress
+		newPVC.Status.ResizeStatus = &expansionFinished
 	}
 
 	newPVC = MergeResizeConditionOnPVC(newPVC, []v1.PersistentVolumeClaimCondition{})

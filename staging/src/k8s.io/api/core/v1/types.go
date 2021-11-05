@@ -529,6 +529,7 @@ const (
 type PersistentVolumeClaimResizeStatus string
 
 const (
+	PersistentVolumeClaimNoExpansionInProgress         PersistentVolumeClaimResizeStatus = ""
 	PersistentVolumeClaimControllerExpansionInProgress PersistentVolumeClaimResizeStatus = "ControllerExpansionInProgress"
 	PersistentVolumeClaimControllerExpansionFailed     PersistentVolumeClaimResizeStatus = "ControllerExpansionFailed"
 	PersistentVolumeClaimNodeExpansionPending          PersistentVolumeClaimResizeStatus = "NodeExpansionPending"

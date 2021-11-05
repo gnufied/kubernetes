@@ -1696,7 +1696,10 @@ func (og *operationGenerator) GenerateExpandAndRecoverVolumeFunc(
 
 		// by default we are expanding to full-fill size requested in pvc.Spec.Resources
 		newSize := pvcSpecSize
-		resizeStatus := *pvc.Status.ResizeStatus
+		resizeStatus := v1.PersistentVolumeClaimNoExpansionInProgress
+		if pvc.Status.ResizeStatus != nil {
+			resizeStatus = *pvc.Status.ResizeStatus
+		}
 		allocatedSize := pvc.Status.AllocatedResources.Storage()
 
 		// pv is not of requested size yet and hence will require expanding
@@ -1989,7 +1992,7 @@ func (og *operationGenerator) nodeExpandVolume(
 			if resizeErr != nil {
 				if volumetypes.IsOperationFinishedError(resizeErr) {
 					var markFailedError error
-					pvc, markFailedError = util.MarkNodeExpansionFailed(pvc, og.kubeClient)
+					_, markFailedError = util.MarkNodeExpansionFailed(pvc, og.kubeClient)
 					if markFailedError != nil {
 						klog.Errorf(volumeToMount.GenerateErrorDetailed("MountMount.NodeExpandVolume failed to mark node expansion as failed: %v", err).Error())
 					}

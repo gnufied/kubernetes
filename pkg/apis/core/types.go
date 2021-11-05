@@ -489,6 +489,7 @@ const (
 type PersistentVolumeClaimResizeStatus string
 
 const (
+	PersistentVolumeClaimNoExpansionInProgress         PersistentVolumeClaimResizeStatus = ""
 	PersistentVolumeClaimControllerExpansionInProgress PersistentVolumeClaimResizeStatus = "ControllerExpansionInProgress"
 	PersistentVolumeClaimControllerExpansionFailed     PersistentVolumeClaimResizeStatus = "ControllerExpansionFailed"
 	PersistentVolumeClaimNodeExpansionPending          PersistentVolumeClaimResizeStatus = "NodeExpansionPending"
@@ -534,6 +535,7 @@ type PersistentVolumeClaimStatus struct {
 	// +optional
 	AllocatedResources ResourceList
 	// ResizeStatus stores status of resize operation
+	// +optional
 	ResizeStatus *PersistentVolumeClaimResizeStatus
 }
 
