@@ -63,7 +63,7 @@ func ClaimToClaimKey(claim *v1.PersistentVolumeClaim) string {
 func UpdatePVSize(
 	pv *v1.PersistentVolume,
 	newSize resource.Quantity,
-	kubeClient clientset.Interface) error {
+	kubeClient clientset.Interface) (*v1.PersistentVolume, error) {
 	pvClone := pv.DeepCopy()
 	pvClone.Spec.Capacity[v1.ResourceStorage] = newSize
 
@@ -86,7 +86,8 @@ func AddAnnPreResizeCapacity(
 	}
 	pvClone.ObjectMeta.Annotations[AnnPreResizeCapacity] = oldCapacity.String()
 
-	return PatchPV(pv, pvClone, kubeClient)
+	_, err := PatchPV(pv, pvClone, kubeClient)
+	return err
 }
 
 // DeleteAnnPreResizeCapacity deletes volume.alpha.kubernetes.io/pre-resize-capacity from the pv
@@ -99,35 +100,35 @@ func DeleteAnnPreResizeCapacity(
 	}
 	pvClone := pv.DeepCopy()
 	delete(pvClone.ObjectMeta.Annotations, AnnPreResizeCapacity)
-
-	return PatchPV(pv, pvClone, kubeClient)
+	_, err := PatchPV(pv, pvClone, kubeClient)
+	return err
 }
 
 // PatchPV creates and executes a patch for pv
 func PatchPV(
 	oldPV *v1.PersistentVolume,
 	newPV *v1.PersistentVolume,
-	kubeClient clientset.Interface) error {
+	kubeClient clientset.Interface) (*v1.PersistentVolume, error) {
 	oldData, err := json.Marshal(oldPV)
 	if err != nil {
-		return fmt.Errorf("unexpected error marshaling old PV %q with error : %v", oldPV.Name, err)
+		return oldPV, fmt.Errorf("unexpected error marshaling old PV %q with error : %v", oldPV.Name, err)
 	}
 
 	newData, err := json.Marshal(newPV)
 	if err != nil {
-		return fmt.Errorf("unexpected error marshaling new PV %q with error : %v", newPV.Name, err)
+		return oldPV, fmt.Errorf("unexpected error marshaling new PV %q with error : %v", newPV.Name, err)
 	}
 
 	patchBytes, err := strategicpatch.CreateTwoWayMergePatch(oldData, newData, oldPV)
 	if err != nil {
-		return fmt.Errorf("error Creating two way merge patch for PV %q with error : %v", oldPV.Name, err)
+		return oldPV, fmt.Errorf("error Creating two way merge patch for PV %q with error : %v", oldPV.Name, err)
 	}
 
-	_, err = kubeClient.CoreV1().PersistentVolumes().Patch(context.TODO(), oldPV.Name, types.StrategicMergePatchType, patchBytes, metav1.PatchOptions{})
+	updatedPV, err := kubeClient.CoreV1().PersistentVolumes().Patch(context.TODO(), oldPV.Name, types.StrategicMergePatchType, patchBytes, metav1.PatchOptions{})
 	if err != nil {
-		return fmt.Errorf("error Patching PV %q with error : %v", oldPV.Name, err)
+		return oldPV, fmt.Errorf("error Patching PV %q with error : %v", oldPV.Name, err)
 	}
-	return nil
+	return updatedPV, nil
 }
 
 // MarkResizeInProgressWithResizer marks cloudprovider resizing as in progress
@@ -187,7 +188,7 @@ func setResizer(pvc *v1.PersistentVolumeClaim, resizerName string) *v1.Persisten
 // MarkForFSResize marks file system resizing as pending
 func MarkForFSResize(
 	pvc *v1.PersistentVolumeClaim,
-	kubeClient clientset.Interface) error {
+	kubeClient clientset.Interface) (*v1.PersistentVolumeClaim, error) {
 	pvcCondition := v1.PersistentVolumeClaimCondition{
 		Type:               v1.PersistentVolumeClaimFileSystemResizePending,
 		Status:             v1.ConditionTrue,
@@ -201,15 +202,15 @@ func MarkForFSResize(
 		newPVC.Status.ResizeStatus = &expansionPendingOnNode
 	}
 	newPVC = MergeResizeConditionOnPVC(newPVC, conditions)
-	_, err := PatchPVCStatus(pvc /*oldPVC*/, newPVC, kubeClient)
-	return err
+	updatedPVC, err := PatchPVCStatus(pvc /*oldPVC*/, newPVC, kubeClient)
+	return updatedPVC, err
 }
 
 // MarkResizeFinished marks all resizing as done
 func MarkResizeFinished(
 	pvc *v1.PersistentVolumeClaim,
 	newSize resource.Quantity,
-	kubeClient clientset.Interface) error {
+	kubeClient clientset.Interface) (*v1.PersistentVolumeClaim, error) {
 	return MarkFSResizeFinished(pvc, newSize, kubeClient)
 }
 
@@ -217,7 +218,7 @@ func MarkResizeFinished(
 func MarkFSResizeFinished(
 	pvc *v1.PersistentVolumeClaim,
 	newSize resource.Quantity,
-	kubeClient clientset.Interface) error {
+	kubeClient clientset.Interface) (*v1.PersistentVolumeClaim, error) {
 	newPVC := pvc.DeepCopy()
 
 	newPVC.Status.Capacity[v1.ResourceStorage] = newSize
@@ -229,8 +230,8 @@ func MarkFSResizeFinished(
 	}
 
 	newPVC = MergeResizeConditionOnPVC(newPVC, []v1.PersistentVolumeClaimCondition{})
-	_, err := PatchPVCStatus(pvc /*oldPVC*/, newPVC, kubeClient)
-	return err
+	updatedPVC, err := PatchPVCStatus(pvc /*oldPVC*/, newPVC, kubeClient)
+	return updatedPVC, err
 }
 
 func MarkControllerExpansionFailed(pvc *v1.PersistentVolumeClaim, kubeClient clientset.Interface) (*v1.PersistentVolumeClaim, error) {
@@ -302,7 +303,7 @@ func PatchPVCStatus(
 	updatedClaim, updateErr := kubeClient.CoreV1().PersistentVolumeClaims(oldPVC.Namespace).
 		Patch(context.TODO(), oldPVC.Name, types.StrategicMergePatchType, patchBytes, metav1.PatchOptions{}, "status")
 	if updateErr != nil {
-		return nil, fmt.Errorf("patchPVCStatus failed to patch PVC %q: %v", oldPVC.Name, updateErr)
+		return oldPVC, fmt.Errorf("patchPVCStatus failed to patch PVC %q: %v", oldPVC.Name, updateErr)
 	}
 	return updatedClaim, nil
 }

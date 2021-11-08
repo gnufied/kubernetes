@@ -178,6 +178,7 @@ type FakeVolumePlugin struct {
 	LimitKey               string
 	ProvisionDelaySeconds  int
 	SupportsRemount        bool
+	DisableNodeExpansion   bool
 
 	// default to false which means it is attachable by default
 	NonAttachable bool
@@ -464,7 +465,7 @@ func (plugin *FakeVolumePlugin) ExpandVolumeDevice(spec *Spec, newSize resource.
 }
 
 func (plugin *FakeVolumePlugin) RequiresFSResize() bool {
-	return true
+	return !plugin.DisableNodeExpansion
 }
 
 func (plugin *FakeVolumePlugin) NodeExpand(resizeOptions NodeResizeOptions) (bool, error) {

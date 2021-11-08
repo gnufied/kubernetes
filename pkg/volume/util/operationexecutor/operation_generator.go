@@ -20,6 +20,7 @@ import (
 	"context"
 	goerrors "errors"
 	"fmt"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"os"
 	"path/filepath"
 	"strings"
@@ -154,6 +155,21 @@ type OperationGenerator interface {
 
 	// Generates the volume file system resize function, which can resize volume's file system to expected size without unmounting the volume.
 	GenerateExpandInUseVolumeFunc(volumeToMount VolumeToMount, actualStateOfWorld ActualStateOfWorldMounterUpdater) (volumetypes.GeneratedOperations, error)
+}
+
+type inTreeResizeOpts struct {
+	resizerName  string
+	pvc          *v1.PersistentVolumeClaim
+	pv           *v1.PersistentVolume
+	volumeSpec   *volume.Spec
+	volumePlugin volume.ExpandableVolumePlugin
+}
+
+type inTreeResizeResponse struct {
+	pvc          *v1.PersistentVolumeClaim
+	pv           *v1.PersistentVolume
+	resizeCalled bool
+	err          error
 }
 
 func (og *operationGenerator) GenerateVolumesAreAttachedFunc(
@@ -1618,7 +1634,7 @@ func (og *operationGenerator) GenerateExpandVolumeFunc(
 			// k8s doesn't have transactions, we can't guarantee that after updating PV - updating PVC will be
 			// successful, that is why all PVCs for which pvc.Spec.Size > pvc.Status.Size must be reprocessed
 			// until they reflect user requested size in pvc.Status.Size
-			updateErr := util.UpdatePVSize(pv, newSize, og.kubeClient)
+			_, updateErr := util.UpdatePVSize(pv, newSize, og.kubeClient)
 			if updateErr != nil {
 				detailedErr := fmt.Errorf("error updating PV spec capacity for volume %q with : %v", util.GetPersistentVolumeClaimQualifiedName(pvc), updateErr)
 				return volumetypes.NewOperationContext(detailedErr, detailedErr, migrated)
@@ -1633,7 +1649,7 @@ func (og *operationGenerator) GenerateExpandVolumeFunc(
 		// reflects user requested size.
 		if !volumePlugin.RequiresFSResize() || !fsVolume {
 			klog.V(4).Infof("Controller resizing done for PVC %s", util.GetPersistentVolumeClaimQualifiedName(pvc))
-			err := util.MarkResizeFinished(pvc, newSize, og.kubeClient)
+			_, err := util.MarkResizeFinished(pvc, newSize, og.kubeClient)
 			if err != nil {
 				detailedErr := fmt.Errorf("error marking pvc %s as resized : %v", util.GetPersistentVolumeClaimQualifiedName(pvc), err)
 				return volumetypes.NewOperationContext(detailedErr, detailedErr, migrated)
@@ -1641,7 +1657,7 @@ func (og *operationGenerator) GenerateExpandVolumeFunc(
 			successMsg := fmt.Sprintf("ExpandVolume succeeded for volume %s", util.GetPersistentVolumeClaimQualifiedName(pvc))
 			og.recorder.Eventf(pvc, v1.EventTypeNormal, kevents.VolumeResizeSuccess, successMsg)
 		} else {
-			err := util.MarkForFSResize(pvc, og.kubeClient)
+			_, err := util.MarkForFSResize(pvc, og.kubeClient)
 			if err != nil {
 				detailedErr := fmt.Errorf("error updating pvc %s condition for fs resize : %v", util.GetPersistentVolumeClaimQualifiedName(pvc), err)
 				klog.Warning(detailedErr)
@@ -1689,109 +1705,20 @@ func (og *operationGenerator) GenerateExpandAndRecoverVolumeFunc(
 	}
 
 	expandVolumeFunc := func() volumetypes.OperationContext {
+		resizeOpts := inTreeResizeOpts{
+			pvc:          pvc,
+			pv:           pv,
+			resizerName:  resizerName,
+			volumePlugin: volumePlugin,
+		}
 		migrated := false
-		pvcSpecSize := pvc.Spec.Resources.Requests[v1.ResourceStorage]
-		pvcStatusSize := pvc.Status.Capacity[v1.ResourceStorage]
-		pvSize := pv.Spec.Capacity[v1.ResourceStorage]
-
-		// by default we are expanding to full-fill size requested in pvc.Spec.Resources
-		newSize := pvcSpecSize
-		resizeStatus := v1.PersistentVolumeClaimNoExpansionInProgress
-		if pvc.Status.ResizeStatus != nil {
-			resizeStatus = *pvc.Status.ResizeStatus
+		resp := og.expandAndRecoverFunction(resizeOpts)
+		if resp.err != nil {
+			return volumetypes.NewOperationContext(resp.err, resp.err, migrated)
 		}
-		allocatedSize := pvc.Status.AllocatedResources.Storage()
-
-		// pv is not of requested size yet and hence will require expanding
-		if pvSize.Cmp(pvcSpecSize) < 0 {
-			// if we are in any of following states, that means expansion has already began
-			// in which case we should try and finish the expansion to previous size
-			// rather than starting expansion to a new size
-			if resizeStatus == v1.PersistentVolumeClaimControllerExpansionInProgress ||
-				resizeStatus == v1.PersistentVolumeClaimNodeExpansionPending ||
-				resizeStatus == v1.PersistentVolumeClaimNodeExpansionInProgress ||
-				resizeStatus == v1.PersistentVolumeClaimNodeExpansionFailed {
-				if allocatedSize != nil {
-					newSize = *allocatedSize
-				}
-			}
-		} else {
-			// PV has already been expanded
-
-			// 1. If resizeStatus is in any of these states that means node is already working towards
-			// expansion and hence we don't need to perform an expanson
-			if resizeStatus == v1.PersistentVolumeClaimNodeExpansionInProgress ||
-				resizeStatus == v1.PersistentVolumeClaimNodeExpansionPending {
-				return volumetypes.NewOperationContext(nil, nil, migrated)
-			}
-
-			// 2. if resizeStatus is nil or any of partial completed states then, we should
-			// try and finish the expansion first
-			if pvc.Status.ResizeStatus == nil ||
-				resizeStatus == v1.PersistentVolumeClaimControllerExpansionInProgress ||
-				resizeStatus == v1.PersistentVolumeClaimControllerExpansionFailed ||
-				resizeStatus == v1.PersistentVolumeClaimNodeExpansionFailed {
-				if allocatedSize != nil {
-					newSize = *allocatedSize
-				}
-			}
-
-		}
-		var err error
-		pvc, err = util.MarkControllerReisizeInProgress(pvc, "", newSize, og.kubeClient)
-		if err != nil {
-			msg := fmt.Errorf("error updating pvc %s with resize in progress: %v", util.GetPersistentVolumeClaimQualifiedName(pvc), err)
-			return volumetypes.NewOperationContext(msg, msg, migrated)
-		}
-		updatedSize, err := volumePlugin.ExpandVolumeDevice(volumeSpec, newSize, pvcStatusSize)
-		if err != nil {
-			msg := fmt.Errorf("error expanding pvc %s: %v", util.GetPersistentVolumeClaimQualifiedName(pvc), err)
-			var updateError error
-			pvc, updateError = util.MarkControllerExpansionFailed(pvc, og.kubeClient)
-			if updateError != nil {
-				msg = fmt.Errorf("expanding pvc %s failed with %v, but unable to mark pvc expansion as failed: %v", util.GetPersistentVolumeClaimQualifiedName(pvc), err, updateError)
-			}
-			return volumetypes.NewOperationContext(msg, msg, migrated)
-		}
-
-		// update PV size
-		updateErr := util.UpdatePVSize(pv, updatedSize, og.kubeClient)
-		// if updating PV failed, we are going to leave the PVC in ControllerExpansionInProgress state, so as expansion can be retried to previously set allocatedSize value.
-		if updateErr != nil {
-			msg := fmt.Errorf("error updating pv for pvc %s: %v", util.GetPersistentVolumeClaimQualifiedName(pvc), updateErr)
-			return volumetypes.NewOperationContext(msg, msg, migrated)
-		}
-
-		fsVolume, _ := util.CheckVolumeModeFilesystem(volumeSpec)
-
-		if !volumePlugin.RequiresFSResize() || !fsVolume {
-			err := util.MarkResizeFinished(pvc, updatedSize, og.kubeClient)
-			if err != nil {
-				msg := fmt.Errorf("error marking pvc %s as resized: %v", util.GetPersistentVolumeClaimQualifiedName(pvc), err)
-				return volumetypes.NewOperationContext(msg, msg, migrated)
-			}
-			successMsg := fmt.Sprintf("ExpandVolume succeeded for volume %s", util.GetPersistentVolumeClaimQualifiedName(pvc))
-			og.recorder.Eventf(pvc, v1.EventTypeNormal, kevents.VolumeResizeSuccess, successMsg)
-		} else {
-			err := util.MarkForFSResize(pvc, og.kubeClient)
-			if err != nil {
-				msg := fmt.Errorf("error marking pvc %s for node expansion: %v", util.GetPersistentVolumeClaimQualifiedName(pvc), err)
-				return volumetypes.NewOperationContext(msg, msg, migrated)
-			}
-
-			// store old PVC capacity in pv, so as if PVC gets deleted while node expansion was pending
-			// we can restore size of pvc from PV annotation and still perform expansion on the node
-			oldCapacity := pvc.Status.Capacity[v1.ResourceStorage]
-			err = util.AddAnnPreResizeCapacity(pv, oldCapacity, og.kubeClient)
-			if err != nil {
-				detailedErr := fmt.Errorf("error updating pv %s annotation (%s) with pre-resize capacity %s: %v", pv.ObjectMeta.Name, util.AnnPreResizeCapacity, oldCapacity.String(), err)
-				klog.Warning(detailedErr)
-				return volumetypes.NewOperationContext(nil, nil, migrated)
-			}
-		}
-
 		return volumetypes.NewOperationContext(nil, nil, migrated)
 	}
+
 	eventRecorderFunc := func(err *error) {
 		if *err != nil {
 			og.recorder.Eventf(pvc, v1.EventTypeWarning, kevents.VolumeResizeFailed, (*err).Error())
@@ -1804,6 +1731,139 @@ func (og *operationGenerator) GenerateExpandAndRecoverVolumeFunc(
 		EventRecorderFunc: eventRecorderFunc,
 		CompleteFunc:      util.OperationCompleteHook(util.GetFullQualifiedPluginNameForVolume(volumePlugin.GetPluginName(), volumeSpec), "expand_volume"),
 	}, nil
+}
+
+func (og *operationGenerator) expandAndRecoverFunction(resizeOpts inTreeResizeOpts) inTreeResizeResponse {
+	pvc := resizeOpts.pvc
+	pv := resizeOpts.pv
+	resizerName := resizeOpts.resizerName
+	volumePlugin := resizeOpts.volumePlugin
+	volumeSpec := resizeOpts.volumeSpec
+
+	pvcSpecSize := pvc.Spec.Resources.Requests[v1.ResourceStorage]
+	pvcStatusSize := pvc.Status.Capacity[v1.ResourceStorage]
+	pvSize := pv.Spec.Capacity[v1.ResourceStorage]
+
+	resizeResponse := inTreeResizeResponse{
+		pvc:          pvc,
+		pv:           pv,
+		resizeCalled: false,
+	}
+
+	// by default we are expanding to full-fill size requested in pvc.Spec.Resources
+	newSize := pvcSpecSize
+	resizeStatus := v1.PersistentVolumeClaimNoExpansionInProgress
+	if pvc.Status.ResizeStatus != nil {
+		resizeStatus = *pvc.Status.ResizeStatus
+	}
+	var allocatedSize *resource.Quantity
+	t, ok := pvc.Status.AllocatedResources[v1.ResourceStorage]
+	if ok {
+		allocatedSize = &t
+	}
+
+	// pv is not of requested size yet and hence will require expanding
+	if pvSize.Cmp(pvcSpecSize) < 0 {
+		// if we are in any of following states, that means expansion has already began
+		// in which case we should try and finish the expansion to previous size
+		// rather than starting expansion to a new size
+		if resizeStatus == v1.PersistentVolumeClaimControllerExpansionInProgress ||
+			resizeStatus == v1.PersistentVolumeClaimNodeExpansionPending ||
+			resizeStatus == v1.PersistentVolumeClaimNodeExpansionInProgress ||
+			resizeStatus == v1.PersistentVolumeClaimNodeExpansionFailed {
+			if allocatedSize != nil {
+				newSize = *allocatedSize
+			}
+		}
+	} else {
+		// PV has already been expanded
+
+		// 1. If resizeStatus is in any of these states that means node is already working towards
+		// expansion and hence we don't need to perform an expanson
+		if resizeStatus == v1.PersistentVolumeClaimNodeExpansionInProgress ||
+			resizeStatus == v1.PersistentVolumeClaimNodeExpansionPending {
+			return resizeResponse
+		}
+
+		// 2. if resizeStatus is nil or any of partial completed states then, we should
+		// try and finish the expansion first
+		if pvc.Status.ResizeStatus == nil ||
+			resizeStatus == v1.PersistentVolumeClaimControllerExpansionInProgress ||
+			resizeStatus == v1.PersistentVolumeClaimControllerExpansionFailed ||
+			resizeStatus == v1.PersistentVolumeClaimNodeExpansionFailed {
+			if allocatedSize != nil {
+				newSize = *allocatedSize
+			}
+		}
+	}
+	var err error
+	pvc, err = util.MarkControllerReisizeInProgress(pvc, resizerName, newSize, og.kubeClient)
+	if err != nil {
+		msg := fmt.Errorf("error updating pvc %s with resize in progress: %v", util.GetPersistentVolumeClaimQualifiedName(pvc), err)
+		resizeResponse.err = msg
+		resizeResponse.pvc = pvc
+		return resizeResponse
+	}
+
+	updatedSize, err := volumePlugin.ExpandVolumeDevice(volumeSpec, newSize, pvcStatusSize)
+	resizeResponse.resizeCalled = true
+
+	if err != nil {
+		msg := fmt.Errorf("error expanding pvc %s: %v", util.GetPersistentVolumeClaimQualifiedName(pvc), err)
+		var updateError error
+		pvc, updateError = util.MarkControllerExpansionFailed(pvc, og.kubeClient)
+		if updateError != nil {
+			msg = fmt.Errorf("expanding pvc %s failed with %v, but unable to mark pvc expansion as failed: %v", util.GetPersistentVolumeClaimQualifiedName(pvc), err, updateError)
+		}
+		resizeResponse.err = msg
+		resizeResponse.pvc = pvc
+		return resizeResponse
+	}
+
+	// update PV size
+	var updateErr error
+	pv, updateErr = util.UpdatePVSize(pv, updatedSize, og.kubeClient)
+	// if updating PV failed, we are going to leave the PVC in ControllerExpansionInProgress state, so as expansion can be retried to previously set allocatedSize value.
+	if updateErr != nil {
+		msg := fmt.Errorf("error updating pv for pvc %s: %v", util.GetPersistentVolumeClaimQualifiedName(pvc), updateErr)
+		resizeResponse.err = msg
+		return resizeResponse
+	}
+	resizeResponse.pv = pv
+
+	fsVolume, _ := util.CheckVolumeModeFilesystem(volumeSpec)
+
+	if !volumePlugin.RequiresFSResize() || !fsVolume {
+		pvc, err = util.MarkResizeFinished(pvc, updatedSize, og.kubeClient)
+		if err != nil {
+			msg := fmt.Errorf("error marking pvc %s as resized: %v", util.GetPersistentVolumeClaimQualifiedName(pvc), err)
+			resizeResponse.err = msg
+			return resizeResponse
+		}
+		resizeResponse.pvc = pvc
+		successMsg := fmt.Sprintf("ExpandVolume succeeded for volume %s", util.GetPersistentVolumeClaimQualifiedName(pvc))
+		og.recorder.Eventf(pvc, v1.EventTypeNormal, kevents.VolumeResizeSuccess, successMsg)
+	} else {
+		pvc, err = util.MarkForFSResize(pvc, og.kubeClient)
+		if err != nil {
+			msg := fmt.Errorf("error marking pvc %s for node expansion: %v", util.GetPersistentVolumeClaimQualifiedName(pvc), err)
+			resizeResponse.err = msg
+			return resizeResponse
+		}
+		resizeResponse.pvc = pvc
+
+		// store old PVC capacity in pv, so as if PVC gets deleted while node expansion was pending
+		// we can restore size of pvc from PV annotation and still perform expansion on the node
+		oldCapacity := pvc.Status.Capacity[v1.ResourceStorage]
+		err = util.AddAnnPreResizeCapacity(pv, oldCapacity, og.kubeClient)
+		if err != nil {
+			detailedErr := fmt.Errorf("error updating pv %s annotation (%s) with pre-resize capacity %s: %v", pv.ObjectMeta.Name, util.AnnPreResizeCapacity, oldCapacity.String(), err)
+			resizeResponse.err = detailedErr
+			klog.Warning(detailedErr)
+			return resizeResponse
+		}
+	}
+	return resizeResponse
 }
 
 func (og *operationGenerator) GenerateExpandInUseVolumeFunc(
@@ -2019,7 +2079,7 @@ func (og *operationGenerator) nodeExpandVolume(
 			og.recorder.Eventf(pvc, v1.EventTypeNormal, kevents.FileSystemResizeSuccess, simpleMsg)
 			klog.InfoS(detailedMsg, "pod", klog.KObj(volumeToMount.Pod))
 			// File system resize succeeded, now update the PVC's Capacity to match the PV's
-			err = util.MarkFSResizeFinished(pvc, pvSpecCap, og.kubeClient)
+			_, err = util.MarkFSResizeFinished(pvc, pvSpecCap, og.kubeClient)
 			if err != nil {
 				// On retry, NodeExpandVolume will be called again but do nothing
 				return false, fmt.Errorf("mountVolume.NodeExpandVolume update PVC status failed : %v", err)
