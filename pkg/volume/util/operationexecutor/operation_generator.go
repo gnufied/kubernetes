@@ -20,11 +20,12 @@ import (
 	"context"
 	goerrors "errors"
 	"fmt"
-	"k8s.io/apimachinery/pkg/api/resource"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -1710,6 +1711,7 @@ func (og *operationGenerator) GenerateExpandAndRecoverVolumeFunc(
 			pv:           pv,
 			resizerName:  resizerName,
 			volumePlugin: volumePlugin,
+			volumeSpec:   volumeSpec,
 		}
 		migrated := false
 		resp := og.expandAndRecoverFunction(resizeOpts)
