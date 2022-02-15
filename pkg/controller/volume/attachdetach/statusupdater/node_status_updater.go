@@ -60,6 +60,8 @@ func (nsu *nodeStatusUpdater) UpdateNodeStatuses() error {
 	// TODO: investigate right behavior if nodeName is empty
 	// kubernetes/kubernetes/issues/37777
 	nodesToUpdate := nsu.actualStateOfWorld.GetVolumesToReportAttached()
+	var lastError error
+
 	for nodeName, attachedVolumes := range nodesToUpdate {
 		nodeObj, err := nsu.nodeLister.Get(string(nodeName))
 		if errors.IsNotFound(err) {
@@ -73,8 +75,9 @@ func (nsu *nodeStatusUpdater) UpdateNodeStatuses() error {
 		} else if err != nil {
 			// For all other errors, log error and reset flag statusUpdateNeeded
 			// back to true to indicate this node status needs to be updated again.
-			klog.V(2).Infof("Error retrieving nodes from node lister. Error: %v", err)
+			klog.ErrorS(err, "Error retrieving nodes from node lister")
 			nsu.actualStateOfWorld.SetNodeStatusUpdateNeeded(nodeName)
+			lastError = err
 			continue
 		}
 
@@ -82,17 +85,11 @@ func (nsu *nodeStatusUpdater) UpdateNodeStatuses() error {
 			// If update node status fails, reset flag statusUpdateNeeded back to true
 			// to indicate this node status needs to be updated again
 			nsu.actualStateOfWorld.SetNodeStatusUpdateNeeded(nodeName)
-
-			klog.V(2).Infof(
-				"Could not update node status for %q; re-marking for update. %v",
-				nodeName,
-				err)
-
-			// We currently always return immediately on error
-			return err
+			klog.ErrorS(err, "failed to update node status", "nodename", nodeName)
+			lastError = err
 		}
 	}
-	return nil
+	return lastError
 }
 
 func (nsu *nodeStatusUpdater) updateNodeStatus(nodeName types.NodeName, nodeObj *v1.Node, attachedVolumes []v1.AttachedVolume) error {
