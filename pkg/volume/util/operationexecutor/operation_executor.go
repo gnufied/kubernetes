@@ -1030,7 +1030,7 @@ func (oe *operationExecutor) ReconstructVolumeOperation(
 	// Filesystem Volume case
 	if volumeMode == v1.PersistentVolumeFilesystem {
 		// Create volumeSpec from mount path
-		klog.V(5).Infof("Starting operationExecutor.ReconstructVolumepodName")
+		klog.V(5).Infof("Starting operationExecutor.ReconstructVolume for pod %q", podName)
 		volumeSpec, err := plugin.ConstructVolumeSpec(volumeSpecName, volumePath)
 		if err != nil {
 			return nil, err
@@ -1040,7 +1040,7 @@ func (oe *operationExecutor) ReconstructVolumeOperation(
 
 	// Block Volume case
 	// Create volumeSpec from mount path
-	klog.V(5).Infof("Starting operationExecutor.ReconstructVolume")
+	klog.V(5).Infof("Starting operationExecutor.ReconstructVolume for pod %q", podName)
 
 	// volumePath contains volumeName on the path. In the case of block volume, {volumeName} is symbolic link
 	// corresponding to raw block device.
@@ -1076,7 +1076,7 @@ func (oe *operationExecutor) CheckVolumeExistenceOperation(
 			if mounter == nil {
 				return false, fmt.Errorf("mounter was not set for a filesystem volume")
 			}
-			if isNotMount, mountCheckErr = mounter.IsLikelyNotMountPoint(mountPath); mountCheckErr != nil {
+			if isNotMount, mountCheckErr = mount.IsNotMountPoint(mounter, mountPath); mountCheckErr != nil {
 				return false, fmt.Errorf("could not check whether the volume %q (spec.Name: %q) pod %q (UID: %q) is mounted with: %v",
 					uniqueVolumeName,
 					volumeName,

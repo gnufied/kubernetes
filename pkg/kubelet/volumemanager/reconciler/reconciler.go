@@ -442,14 +442,6 @@ func (rc *reconciler) reconstructVolume(volume podVolume) (*reconstructedVolume,
 	if err != nil {
 		return nil, err
 	}
-	attachablePlugin, err := rc.volumePluginMgr.FindAttachablePluginByName(volume.pluginName)
-	if err != nil {
-		return nil, err
-	}
-	deviceMountablePlugin, err := rc.volumePluginMgr.FindDeviceMountablePluginByName(volume.pluginName)
-	if err != nil {
-		return nil, err
-	}
 
 	// Create pod object
 	pod := &v1.Pod{
@@ -474,6 +466,15 @@ func (rc *reconciler) reconstructVolume(volume podVolume) (*reconstructedVolume,
 		volume.volumeSpecName,
 		volume.volumePath,
 		volume.pluginName)
+	if err != nil {
+		return nil, err
+	}
+
+	attachablePlugin, err := rc.volumePluginMgr.FindAttachablePluginBySpec(volumeSpec)
+	if err != nil {
+		return nil, err
+	}
+	deviceMountablePlugin, err := rc.volumePluginMgr.FindDeviceMountablePluginBySpec(volumeSpec)
 	if err != nil {
 		return nil, err
 	}
