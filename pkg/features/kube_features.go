@@ -681,6 +681,16 @@ const (
 	// Enables the use of `RuntimeDefault` as the default seccomp profile for all workloads.
 	SeccompDefault featuregate.Feature = "SeccompDefault"
 
+	// owner: @jsafrane
+
+	// kep: http://kep.k8s.io/1710
+	// alpha: v1.24
+	//
+	// Speed up container startup by mounting volumes with the correct SELinux label
+	// instead of changing each file on the volumes recursively.
+	// Initial implementation focused on ReadWriteOncePod volumes.
+	SELinuxMountReadWriteOncePod featuregate.Feature = "SELinuxMountReadWriteOncePod"
+
 	// owner: @maplain @andrewsykim
 	// kep: http://kep.k8s.io/2086
 	// alpha: v1.21
@@ -979,7 +989,8 @@ var defaultKubernetesFeatureGates = map[featuregate.Feature]featuregate.FeatureS
 
 	RotateKubeletServerCertificate: {Default: true, PreRelease: featuregate.Beta},
 
-	SeccompDefault: {Default: false, PreRelease: featuregate.Alpha},
+	SeccompDefault:               {Default: false, PreRelease: featuregate.Alpha},
+	SELinuxMountReadWriteOncePod: {Default: false, PreRelease: featuregate.Alpha},
 
 	ServiceIPStaticSubrange: {Default: false, PreRelease: featuregate.Alpha},
 
