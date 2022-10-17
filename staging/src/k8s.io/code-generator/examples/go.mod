@@ -18,3 +18,5 @@ replace (
 )
 
 replace k8s.io/kube-openapi => github.com/alexzielenski/kube-openapi v0.0.0-20221012042156-8d4943971e80
+
+replace github.com/container-storage-interface/spec => github.com/gnufied/spec v1.7.1-0.20221017185653-62c6bbb6bd20
