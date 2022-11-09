@@ -2014,57 +2014,92 @@ var _ = utils.SIGDescribe("CSI mock volume", func() {
 
 	ginkgo.Context("SELinuxMount [LinuxOnly][Feature:SELinuxMountReadWriteOncePod]", func() {
 		// Make sure all options are set so system specific defaults are not used.
-		seLinuxOpts := v1.SELinuxOptions{
+		seLinuxOpts1 := v1.SELinuxOptions{
 			User:  "system_u",
 			Role:  "object_r",
 			Type:  "container_file_t",
 			Level: "s0:c0,c1",
 		}
-		seLinuxMountOption := "context=\"system_u:object_r:container_file_t:s0:c0,c1\""
+		seLinuxMountOption1 := "context=\"system_u:object_r:container_file_t:s0:c0,c1\""
+		seLinuxOpts2 := v1.SELinuxOptions{
+			User:  "system_u",
+			Role:  "object_r",
+			Type:  "container_file_t",
+			Level: "s0:c98,c99",
+		}
+		seLinuxMountOption2 := "context=\"system_u:object_r:container_file_t:s0:c98,c99\""
 
 		tests := []struct {
-			name                 string
-			seLinuxEnabled       bool
-			seLinuxSetInPod      bool
-			mountOptions         []string
-			volumeMode           v1.PersistentVolumeAccessMode
-			expectedMountOptions []string
+			name                       string
+			CSIDriverSELinuxEnabled    bool
+			firstPodSELinuxOpts        *v1.SELinuxOptions
+			startSecondPod             bool
+			secondPodSELinxOpts        *v1.SELinuxOptions
+			mountOptions               []string
+			volumeMode                 v1.PersistentVolumeAccessMode
+			expectedFirstMountOptions  []string
+			expectedSecondMountOptions []string
+			expectedUnstage            bool
 		}{
+			// Start just a single pod and check its volume is mounted correctly
 			{
-				name:                 "should pass SELinux mount option for RWOP volume and Pod with SELinux context set",
-				seLinuxEnabled:       true,
-				seLinuxSetInPod:      true,
-				volumeMode:           v1.ReadWriteOncePod,
-				expectedMountOptions: []string{seLinuxMountOption},
+				name:                      "should pass SELinux mount option for RWOP volume and Pod with SELinux context set",
+				CSIDriverSELinuxEnabled:   true,
+				firstPodSELinuxOpts:       &seLinuxOpts1,
+				volumeMode:                v1.ReadWriteOncePod,
+				expectedFirstMountOptions: []string{seLinuxMountOption1},
 			},
 			{
-				name:                 "should add SELinux mount option to existing mount options",
-				seLinuxEnabled:       true,
-				seLinuxSetInPod:      true,
-				mountOptions:         []string{"noexec", "noatime"},
-				volumeMode:           v1.ReadWriteOncePod,
-				expectedMountOptions: []string{"noexec", "noatime", seLinuxMountOption},
+				name:                      "should add SELinux mount option to existing mount options",
+				CSIDriverSELinuxEnabled:   true,
+				firstPodSELinuxOpts:       &seLinuxOpts1,
+				mountOptions:              []string{"noexec", "noatime"},
+				volumeMode:                v1.ReadWriteOncePod,
+				expectedFirstMountOptions: []string{"noexec", "noatime", seLinuxMountOption1},
 			},
 			{
-				name:                 "should not pass SELinux mount option for RWO volume",
-				seLinuxEnabled:       true,
-				seLinuxSetInPod:      true,
-				volumeMode:           v1.ReadWriteOnce,
-				expectedMountOptions: nil,
+				name:                      "should not pass SELinux mount option for RWO volume",
+				CSIDriverSELinuxEnabled:   true,
+				firstPodSELinuxOpts:       &seLinuxOpts1,
+				volumeMode:                v1.ReadWriteOnce,
+				expectedFirstMountOptions: nil,
 			},
 			{
-				name:                 "should not pass SELinux mount option for Pod without SELinux context",
-				seLinuxEnabled:       true,
-				seLinuxSetInPod:      false,
-				volumeMode:           v1.ReadWriteOncePod,
-				expectedMountOptions: nil,
+				name:                      "should not pass SELinux mount option for Pod without SELinux context",
+				CSIDriverSELinuxEnabled:   true,
+				firstPodSELinuxOpts:       nil,
+				volumeMode:                v1.ReadWriteOncePod,
+				expectedFirstMountOptions: nil,
 			},
 			{
-				name:                 "should not pass SELinux mount option for CSI driver that does not support SELinux mount",
-				seLinuxEnabled:       false,
-				seLinuxSetInPod:      true,
-				volumeMode:           v1.ReadWriteOncePod,
-				expectedMountOptions: nil,
+				name:                      "should not pass SELinux mount option for CSI driver that does not support SELinux mount",
+				CSIDriverSELinuxEnabled:   false,
+				firstPodSELinuxOpts:       &seLinuxOpts1,
+				volumeMode:                v1.ReadWriteOncePod,
+				expectedFirstMountOptions: nil,
+			},
+			// Start two pods in a sequence and check their volume is / is not unmounted in between
+			{
+				name:                       "should not unstage volume when starting a second pod with the same SELinux context",
+				CSIDriverSELinuxEnabled:    true,
+				firstPodSELinuxOpts:        &seLinuxOpts1,
+				startSecondPod:             true,
+				secondPodSELinxOpts:        &seLinuxOpts1,
+				volumeMode:                 v1.ReadWriteOncePod,
+				expectedFirstMountOptions:  []string{seLinuxMountOption1},
+				expectedSecondMountOptions: []string{seLinuxMountOption1},
+				expectedUnstage:            false,
+			},
+			{
+				name:                       "should unstage volume when starting a second pod with different SELinux context",
+				CSIDriverSELinuxEnabled:    true,
+				firstPodSELinuxOpts:        &seLinuxOpts1,
+				startSecondPod:             true,
+				secondPodSELinxOpts:        &seLinuxOpts2,
+				volumeMode:                 v1.ReadWriteOncePod,
+				expectedFirstMountOptions:  []string{seLinuxMountOption1},
+				expectedSecondMountOptions: []string{seLinuxMountOption2},
+				expectedUnstage:            true,
 			},
 		}
 		for _, t := range tests {
@@ -2074,27 +2109,94 @@ var _ = utils.SIGDescribe("CSI mock volume", func() {
 					e2eskipper.Skipf("SELinuxMount is only applied on linux nodes -- skipping")
 				}
 				var nodeStageMountOpts, nodePublishMountOpts []string
+				var unstageCalls, stageCalls, unpublishCalls, publishCalls atomic.Int32
 				init(testParameters{
 					disableAttach:      true,
 					registerDriver:     true,
-					enableSELinuxMount: &t.seLinuxEnabled,
-					hooks:              createSELinuxMountPreHook(&nodeStageMountOpts, &nodePublishMountOpts),
+					enableSELinuxMount: &t.CSIDriverSELinuxEnabled,
+					hooks:              createSELinuxMountPreHook(&nodeStageMountOpts, &nodePublishMountOpts, &stageCalls, &unstageCalls, &publishCalls, &unpublishCalls),
 				})
 				defer cleanup()
 
+				// Act: start the first pod
+				ginkgo.By("Starting the first pod")
 				accessModes := []v1.PersistentVolumeAccessMode{t.volumeMode}
-				var podSELinuxOpts *v1.SELinuxOptions
-				if t.seLinuxSetInPod {
-					// Make sure all options are set so system specific defaults are not used.
-					podSELinuxOpts = &seLinuxOpts
-				}
-
-				_, _, pod := createPodWithSELinux(accessModes, t.mountOptions, podSELinuxOpts)
+				_, claim, pod := createPodWithSELinux(accessModes, t.mountOptions, t.firstPodSELinuxOpts)
 				err := e2epod.WaitForPodNameRunningInNamespace(m.cs, pod.Name, pod.Namespace)
 				framework.ExpectNoError(err, "failed to start pod")
 
-				framework.ExpectEqual(nodeStageMountOpts, t.expectedMountOptions, "Expect NodeStageVolumeRequest.VolumeCapability.MountVolume. to equal %q; got: %q", t.expectedMountOptions, nodeStageMountOpts)
-				framework.ExpectEqual(nodePublishMountOpts, t.expectedMountOptions, "Expect NodePublishVolumeRequest.VolumeCapability.MountVolume.VolumeMountGroup to equal %q; got: %q", t.expectedMountOptions, nodeStageMountOpts)
+				ginkgo.By("Checking the first pod mount options")
+				framework.ExpectEqual(nodeStageMountOpts, t.expectedFirstMountOptions, "Expect NodeStageVolumeRequest.VolumeCapability.MountVolume. to equal %q; got: %q", t.expectedFirstMountOptions, nodeStageMountOpts)
+				framework.ExpectEqual(nodePublishMountOpts, t.expectedFirstMountOptions, "Expect NodePublishVolumeRequest.VolumeCapability.MountVolume.VolumeMountGroup to equal %q; got: %q", t.expectedFirstMountOptions, nodeStageMountOpts)
+
+				ginkgo.By("Checking the CSI driver calls for the first pod")
+				gomega.Expect(unstageCalls.Load()).To(gomega.BeNumerically("==", 0), "NodeUnstage was unexpectedly called for the first pod")
+				gomega.Expect(unpublishCalls.Load()).To(gomega.BeNumerically("==", 0), "NodeUnpublish was unexpectedly called for the first pod")
+				gomega.Expect(stageCalls.Load()).To(gomega.BeNumerically(">", 0), "NodeStage was not called for the first pod")
+				gomega.Expect(publishCalls.Load()).To(gomega.BeNumerically(">", 0), "NodePublish was not called for the first pod")
+
+				if !t.startSecondPod {
+					return
+				}
+
+				ginkgo.By("Starting the second pod")
+				// Skip scheduler, it would block scheduling the second pod with ReadWriteOncePod PV.
+				pod, err = m.cs.CoreV1().Pods(pod.Namespace).Get(context.TODO(), pod.Name, metav1.GetOptions{})
+				framework.ExpectNoError(err, fmt.Sprintf("get first pod"))
+				nodeSelection := e2epod.NodeSelection{Name: pod.Spec.NodeName}
+				pod2, err := startPausePodWithSELinuxOptions(f.ClientSet, claim, nodeSelection, f.Namespace.Name, t.secondPodSELinxOpts)
+				framework.ExpectNoError(err, "Failed to create second pause pod with SELinux context %s: %v", t.secondPodSELinxOpts, err)
+				m.pods = append(m.pods, pod2)
+
+				ginkgo.By("Waiting for the second pod to fail to start because of RWOP")
+				eventSelector := fields.Set{
+					"involvedObject.kind":      "Pod",
+					"involvedObject.name":      pod2.Name,
+					"involvedObject.namespace": pod2.Namespace,
+					"reason":                   events.FailedMountVolume,
+				}.AsSelector().String()
+				var msg string
+				if t.expectedUnstage {
+					// This message is emitted before kubelet checks for ReadWriteOncePod
+					msg = "conflicting SELinux labels of volume"
+				} else {
+					msg = "volume uses the ReadWriteOncePod access mode and is already in use by another pod"
+				}
+				err = e2eevents.WaitTimeoutForEvent(m.cs, pod2.Namespace, eventSelector, msg, f.Timeouts.PodStart)
+
+				// count fresh CSI driver calls between the first and the second pod
+				nodeStageMountOpts = nil
+				nodePublishMountOpts = nil
+				unstageCalls.Store(0)
+				unpublishCalls.Store(0)
+				stageCalls.Store(0)
+				publishCalls.Store(0)
+
+				ginkgo.By("Deleting the first pod")
+				err = e2epod.DeletePodWithWait(m.cs, pod)
+				framework.ExpectNoError(err, "while deleting the first pod")
+
+				// Assert:
+				ginkgo.By("Waiting for the second pod to start")
+				err = e2epod.WaitForPodNameRunningInNamespace(m.cs, pod2.Name, pod2.Namespace)
+				framework.ExpectNoError(err, "failed to start the second pod")
+
+				ginkgo.By("Checking CSI driver calls for the second pod")
+				if t.expectedUnstage {
+					// Volume should be fully unstaged between the first and the second pod
+					gomega.Expect(unstageCalls.Load()).To(gomega.BeNumerically(">", 0), "NodeUnstage was not called for the second pod")
+					gomega.Expect(stageCalls.Load()).To(gomega.BeNumerically(">", 0), "NodeStage was not called for the second pod")
+					// The second pod got the right mount option
+					framework.ExpectEqual(nodeStageMountOpts, t.expectedSecondMountOptions, "Expect NodeStageVolumeRequest.VolumeCapability.MountVolume. to equal %q; got: %q", t.expectedSecondMountOptions, nodeStageMountOpts)
+				} else {
+					// Volume should not be fully unstaged between the first and the second pod
+					gomega.Expect(unstageCalls.Load()).To(gomega.BeNumerically("==", 0), "NodeUnstage was unexpectedly called for the second pod")
+					gomega.Expect(stageCalls.Load()).To(gomega.BeNumerically("==", 0), "NodeStage was unexpectedly called for the second pod")
+				}
+				// In both cases, Unublish and Publish is called, with the right mount opts
+				gomega.Expect(unpublishCalls.Load()).To(gomega.BeNumerically(">", 0), "NodeUnpublish was not called for the second pod")
+				gomega.Expect(publishCalls.Load()).To(gomega.BeNumerically(">", 0), "NodePublish was not called for the second pod")
+				framework.ExpectEqual(nodePublishMountOpts, t.expectedSecondMountOptions, "Expect NodePublishVolumeRequest.VolumeCapability.MountVolume.VolumeMountGroup to equal %q; got: %q", t.expectedSecondMountOptions, nodeStageMountOpts)
 			})
 		}
 	})
@@ -2664,11 +2766,12 @@ func createFSGroupRequestPreHook(nodeStageFsGroup, nodePublishFsGroup *string) *
 
 // createSELinuxMountPreHook creates a hook that records the mountOptions passed in
 // through NodeStageVolume and NodePublishVolume calls.
-func createSELinuxMountPreHook(nodeStageMountOpts, nodePublishMountOpts *[]string) *drivers.Hooks {
+func createSELinuxMountPreHook(nodeStageMountOpts, nodePublishMountOpts *[]string, stageCalls, unstageCalls, publishCalls, unpublishCalls *atomic.Int32) *drivers.Hooks {
 	return &drivers.Hooks{
 		Pre: func(ctx context.Context, fullMethod string, request interface{}) (reply interface{}, err error) {
 			nodeStageRequest, ok := request.(*csipbv1.NodeStageVolumeRequest)
 			if ok {
+				stageCalls.Add(1)
 				mountVolume := nodeStageRequest.GetVolumeCapability().GetMount()
 				if mountVolume != nil {
 					*nodeStageMountOpts = mountVolume.MountFlags
@@ -2676,10 +2779,19 @@ func createSELinuxMountPreHook(nodeStageMountOpts, nodePublishMountOpts *[]strin
 			}
 			nodePublishRequest, ok := request.(*csipbv1.NodePublishVolumeRequest)
 			if ok {
+				publishCalls.Add(1)
 				mountVolume := nodePublishRequest.GetVolumeCapability().GetMount()
 				if mountVolume != nil {
 					*nodePublishMountOpts = mountVolume.MountFlags
 				}
+			}
+			_, ok = request.(*csipbv1.NodeUnstageVolumeRequest)
+			if ok {
+				unstageCalls.Add(1)
+			}
+			_, ok = request.(*csipbv1.NodeUnpublishVolumeRequest)
+			if ok {
+				unpublishCalls.Add(1)
 			}
 			return nil, nil
 		},
