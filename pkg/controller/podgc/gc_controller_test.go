@@ -175,6 +175,9 @@ func TestGCTerminated(t *testing.T) {
 			verifyDeletedAndPatchedPods(t, client, test.deletedPodNames, test.patchedPodNames)
 		})
 	}
+
+	// testDeletingPodsMetrics is 9 in this test
+	testDeletingPodsMetrics(t, 9, "terminated")
 }
 
 func makePod(name string, nodeName string, phase v1.PodPhase) *v1.Pod {
@@ -406,6 +409,9 @@ func TestGCOrphaned(t *testing.T) {
 			verifyDeletedAndPatchedPods(t, client, test.deletedPodNames, test.patchedPodNames)
 		})
 	}
+
+	// testDeletingPodsMetrics is 10 in this test
+	testDeletingPodsMetrics(t, 10, "orphaned")
 }
 
 func TestGCUnscheduledTerminating(t *testing.T) {
@@ -486,6 +492,9 @@ func TestGCUnscheduledTerminating(t *testing.T) {
 			verifyDeletedAndPatchedPods(t, client, test.deletedPodNames, test.patchedPodNames)
 		})
 	}
+
+	// testDeletingPodsMetrics is 6 in this test
+	testDeletingPodsMetrics(t, 6, "unscheduled")
 }
 
 func TestGCTerminating(t *testing.T) {
@@ -653,8 +662,8 @@ func TestGCTerminating(t *testing.T) {
 			verifyDeletedAndPatchedPods(t, client, test.deletedPodNames, test.patchedPodNames)
 		})
 	}
-	// deletingPodsTotal is 7 in this test
-	testDeletingPodsMetrics(t, 7)
+	// testDeletingPodsMetrics is 7 in this test
+	testDeletingPodsMetrics(t, 7, "out-of-service")
 }
 
 func verifyDeletedAndPatchedPods(t *testing.T, client *fake.Clientset, wantDeletedPodNames, wantPatchedPodNames sets.String) {
@@ -669,18 +678,18 @@ func verifyDeletedAndPatchedPods(t *testing.T, client *fake.Clientset, wantDelet
 	}
 }
 
-func testDeletingPodsMetrics(t *testing.T, inputDeletingPodsTotal int) {
+func testDeletingPodsMetrics(t *testing.T, total int, reason string) {
 	t.Helper()
 
-	actualDeletingPodsTotal, err := metricstestutil.GetCounterMetricValue(deletingPodsTotal.WithLabelValues())
+	actualDeletingPodsTotal, err := metricstestutil.GetCounterMetricValue(deletingPodsTotal.WithLabelValues(reason))
 	if err != nil {
 		t.Errorf("Error getting actualDeletingPodsTotal")
 	}
-	if actualDeletingPodsTotal != float64(inputDeletingPodsTotal) {
-		t.Errorf("Expected desiredDeletingPodsTotal to be %d, got %v", inputDeletingPodsTotal, actualDeletingPodsTotal)
+	if actualDeletingPodsTotal != float64(total) {
+		t.Errorf("Expected desiredDeletingPodsTotal to be %d, got %v", total, actualDeletingPodsTotal)
 	}
 
-	actualDeletingPodsErrorTotal, err := metricstestutil.GetCounterMetricValue(deletingPodsErrorTotal.WithLabelValues())
+	actualDeletingPodsErrorTotal, err := metricstestutil.GetCounterMetricValue(deletingPodsErrorTotal.WithLabelValues(reason))
 	if err != nil {
 		t.Errorf("Error getting actualDeletingPodsErrorTotal")
 	}

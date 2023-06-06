@@ -35,7 +35,7 @@ var (
 			Help:           "Number of pods that are being forcefully deleted since the Pod GC Controller started.",
 			StabilityLevel: metrics.ALPHA,
 		},
-		[]string{},
+		[]string{"reason"},
 	)
 	deletingPodsErrorTotal = metrics.NewCounterVec(
 		&metrics.CounterOpts{
@@ -44,7 +44,7 @@ var (
 			Help:           "Number of errors encountered when forcefully deleting the pods since the Pod GC Controller started.",
 			StabilityLevel: metrics.ALPHA,
 		},
-		[]string{},
+		[]string{"reason"},
 	)
 )
 

@@ -179,11 +179,11 @@ func (gcc *PodGCController) gcTerminating(ctx context.Context, pods []*v1.Pod) {
 		wait.Add(1)
 		go func(pod *v1.Pod) {
 			defer wait.Done()
-			deletingPodsTotal.WithLabelValues().Inc()
+			deletingPodsTotal.WithLabelValues("out-of-service").Inc()
 			if err := gcc.markFailedAndDeletePod(ctx, pod); err != nil {
 				// ignore not founds
 				utilruntime.HandleError(err)
-				deletingPodsErrorTotal.WithLabelValues().Inc()
+				deletingPodsErrorTotal.WithLabelValues("out-of-service").Inc()
 			}
 		}(terminatingPods[i])
 	}
@@ -213,9 +213,11 @@ func (gcc *PodGCController) gcTerminated(ctx context.Context, pods []*v1.Pod) {
 		wait.Add(1)
 		go func(pod *v1.Pod) {
 			defer wait.Done()
+			deletingPodsTotal.WithLabelValues("terminated").Inc()
 			if err := gcc.markFailedAndDeletePod(ctx, pod); err != nil {
 				// ignore not founds
 				defer utilruntime.HandleError(err)
+				deletingPodsErrorTotal.WithLabelValues("terminated").Inc()
 			}
 		}(terminatedPods[i])
 	}
@@ -252,8 +254,10 @@ func (gcc *PodGCController) gcOrphaned(ctx context.Context, pods []*v1.Pod, node
 			WithReason("DeletionByPodGC").
 			WithMessage("PodGC: node no longer exists").
 			WithLastTransitionTime(metav1.Now())
+		deletingPodsTotal.WithLabelValues("orphaned").Inc()
 		if err := gcc.markFailedAndDeletePodWithCondition(ctx, pod, condition); err != nil {
 			utilruntime.HandleError(err)
+			deletingPodsErrorTotal.WithLabelValues("orphaned").Inc()
 		} else {
 			klog.InfoS("Forced deletion of orphaned Pod succeeded", "pod", klog.KObj(pod))
 		}
@@ -301,8 +305,10 @@ func (gcc *PodGCController) gcUnscheduledTerminating(ctx context.Context, pods [
 		}
 
 		klog.V(2).InfoS("Found unscheduled terminating Pod not assigned to any Node, deleting.", "pod", klog.KObj(pod))
+		deletingPodsTotal.WithLabelValues("unscheduled").Inc()
 		if err := gcc.markFailedAndDeletePod(ctx, pod); err != nil {
 			utilruntime.HandleError(err)
+			deletingPodsErrorTotal.WithLabelValues("unscheduled").Inc()
 		} else {
 			klog.InfoS("Forced deletion of unscheduled terminating Pod succeeded", "pod", klog.KObj(pod))
 		}
