@@ -119,14 +119,21 @@ type NestedPendingOperations interface {
 func NewNestedPendingOperations(exponentialBackOffOnError bool) NestedPendingOperations {
 	g := &nestedPendingOperations{
 		operations:                []operation{},
+		operationCounter:          map[operationKey]int{},
 		exponentialBackOffOnError: exponentialBackOffOnError,
 	}
 	g.cond = sync.NewCond(&g.lock)
 	return g
 }
 
+type counterWithTimestamp struct {
+	counter   int
+	timestamp int64
+}
+
 type nestedPendingOperations struct {
 	operations                []operation
+	operationCounter          map[operationKey]int
 	exponentialBackOffOnError bool
 	cond                      *sync.Cond
 	lock                      sync.RWMutex
@@ -181,6 +188,15 @@ func (grm *nestedPendingOperations) Run(
 				expBackoff:       exponentialbackoff.ExponentialBackoff{},
 			})
 	}
+
+	if currentCounter, ok := grm.operationCounter[opKey]; ok {
+		if currentCounter >= 0 {
+			grm.operationCounter[opKey] = currentCounter - 1
+			return NewAlreadyExistsError(opKey)
+		}
+	}
+
+	grm.operationCounter[opKey] = 1
 
 	go func() (eventErr, detailedErr error) {
 		// Handle unhandled panics (very unlikely)
@@ -320,6 +336,9 @@ func (grm *nestedPendingOperations) operationComplete(key operationKey, err *err
 	defer grm.cond.Signal()
 	grm.lock.Lock()
 	defer grm.lock.Unlock()
+
+	// reset operation counter to 0, so as next operation can proceed
+	grm.operationCounter[key] = 0
 
 	if *err == nil || !grm.exponentialBackOffOnError {
 		// Operation completed without error, or exponentialBackOffOnError disabled
