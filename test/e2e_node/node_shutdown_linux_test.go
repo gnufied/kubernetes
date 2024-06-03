@@ -28,22 +28,23 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/onsi/ginkgo/v2"
+	"github.com/onsi/gomega"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/tools/cache"
 	watchtools "k8s.io/client-go/tools/watch"
 	"k8s.io/kubectl/pkg/util/podutils"
-
-	admissionapi "k8s.io/pod-security-admission/api"
-
-	"github.com/onsi/ginkgo/v2"
-	"github.com/onsi/gomega"
 	"k8s.io/kubernetes/pkg/apis/scheduling"
 	"k8s.io/kubernetes/test/e2e/framework"
 	e2epod "k8s.io/kubernetes/test/e2e/framework/pod"
 	e2eskipper "k8s.io/kubernetes/test/e2e/framework/skipper"
+	e2evolume "k8s.io/kubernetes/test/e2e/framework/volume"
 	"k8s.io/kubernetes/test/e2e/nodefeature"
+	"k8s.io/kubernetes/test/e2e/storage/drivers"
+	storageframework "k8s.io/kubernetes/test/e2e/storage/framework"
+	admissionapi "k8s.io/pod-security-admission/api"
 
 	"github.com/godbus/dbus/v5"
 	v1 "k8s.io/api/core/v1"
@@ -81,6 +82,88 @@ var _ = SIGDescribe("GracefulNodeShutdown", framework.WithSerial(), nodefeature.
 				}
 			}
 		}
+	})
+
+	f.Context("ensure volumes are unmounted before node shutdown", func() {
+		const (
+			pollInterval            = 1 * time.Second
+			nodeShutdownGracePeriod = 30 * time.Second
+		)
+
+		var (
+			driver     storageframework.DynamicPVTestDriver
+			testConfig *storageframework.PerTestConfig
+		)
+
+		tempSetCurrentKubeletConfig(f, func(ctx context.Context, initialConfig *kubeletconfig.KubeletConfiguration) {
+			initialConfig.FeatureGates = map[string]bool{
+				string(features.GracefulNodeShutdown):                   true,
+				string(features.PodDisruptionConditions):                true,
+				string(features.GracefulNodeShutdownBasedOnPodPriority): true,
+			}
+			initialConfig.ShutdownGracePeriod = metav1.Duration{Duration: nodeShutdownGracePeriod}
+		})
+
+		ginkgo.BeforeEach(func(ctx context.Context) {
+			driver = drivers.InitHostPathCSIDriver().(storageframework.DynamicPVTestDriver)
+			testConfig = driver.PrepareTest(ctx, f)
+
+			ginkgo.By("Wait for the node to be ready")
+			waitForNodeReady(ctx)
+		})
+
+		ginkgo.AfterEach(func() {
+			ginkgo.By("Emitting Shutdown false signal; cancelling the shutdown")
+			err := emitSignalPrepareForShutdown(false)
+			framework.ExpectNoError(err)
+		})
+
+		ginkgo.It("should wait for volumes to be unmounted before node shutdown", func(ctx context.Context) {
+			ginkgo.By("Provision a new CSI volume")
+			res := storageframework.CreateVolumeResource(ctx, driver, testConfig, storageframework.DefaultFsDynamicPV, e2evolume.SizeRange{Min: "1Gi", Max: "1Gi"})
+			ginkgo.DeferCleanup(func(ctx context.Context) {
+				err := res.CleanupResource(ctx)
+				if err != nil {
+					framework.Logf("Failed to clean up resources: %v", err)
+				}
+			})
+
+			ginkgo.By("Run a pod with the volume")
+			podConfig := &e2epod.Config{
+				NS:            f.Namespace.Name,
+				PVCs:          []*v1.PersistentVolumeClaim{res.Pvc},
+				NodeSelection: testConfig.ClientNodeSelection,
+			}
+			pod, err := e2epod.CreateSecPod(ctx, f.ClientSet, podConfig, f.Timeouts.PodStart)
+			framework.ExpectNoError(err, "Creating a pod with a CSI volume")
+			ginkgo.DeferCleanup(f.ClientSet.CoreV1().Pods(f.Namespace.Name).Delete, pod.Name, metav1.DeleteOptions{})
+
+			ginkgo.By("Verifying the pod is running")
+			err = e2epod.WaitForPodNameRunningInNamespace(ctx, f.ClientSet, pod.Name, f.Namespace.Name)
+			framework.ExpectNoError(err, "Pod should be running")
+
+			ginkgo.By("Emitting shutdown signal")
+			err = emitSignalPrepareForShutdown(true)
+			framework.ExpectNoError(err, "failed to emit shutdown signal")
+
+			// Set a context with a timeout of 2 minutes for gomega.Eventually
+			// to ensure that the test does not succeed due to a force detach timeout.
+			ctxWithTimeout, cancel := context.WithTimeout(ctx, 2*time.Minute)
+			defer cancel()
+
+			ginkgo.By("Verifying that volumes are unmounted")
+			nodeName := getNodeName(ctx, f)
+			gomega.Eventually(ctxWithTimeout, func() error {
+				node, err := f.ClientSet.CoreV1().Nodes().Get(ctxWithTimeout, nodeName, metav1.GetOptions{})
+				if err != nil {
+					return err
+				}
+				if len(node.Status.VolumesInUse) > 0 {
+					return fmt.Errorf("volumes still in use: %v", node.Status.VolumesInUse)
+				}
+				return nil
+			}, pollInterval).Should(gomega.Succeed(), "Volumes should be unmounted before node shutdown proceeds")
+		})
 	})
 
 	f.Context("graceful node shutdown when PodDisruptionConditions are enabled", nodefeature.PodDisruptionConditions, func() {

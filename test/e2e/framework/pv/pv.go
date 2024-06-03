@@ -795,6 +795,17 @@ func WaitForPersistentVolumeClaimsPhase(ctx context.Context, phase v1.Persistent
 				phaseFoundInAllClaims = false
 				break
 			}
+
+			events, err := c.CoreV1().Events(ns).List(ctx, metav1.ListOptions{
+				FieldSelector: fmt.Sprintf("involvedObject.name=%s,involvedObject.kind=PersistentVolumeClaim", pvcName),
+			})
+			if err != nil {
+				framework.Logf("Failed to get events for claim %q, retrying in %v. Error: %v", pvcName, poll, err)
+			}
+			for _, e := range events.Items {
+				framework.Logf("Event for PVC %v", e)
+			}
+
 			if pvc.Status.Phase == phase {
 				framework.Logf("PersistentVolumeClaim %s found and phase=%s (%v)", pvcName, phase, time.Since(start))
 				if matchAny {
@@ -805,6 +816,7 @@ func WaitForPersistentVolumeClaimsPhase(ctx context.Context, phase v1.Persistent
 				phaseFoundInAllClaims = false
 			}
 		}
+
 		if phaseFoundInAllClaims {
 			return nil
 		}

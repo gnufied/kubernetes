@@ -300,6 +300,9 @@ func createPVCPVFromDynamicProvisionSC(
 		VolumeMode:       &volMode,
 	}
 
+	framework.Logf("Creating a PVC, storageclass binding mode: %v,", sc.VolumeBindingMode)
+	framework.Logf("Creating a PVC, PVC config: %v,", pvcCfg)
+
 	pvc := e2epv.MakePersistentVolumeClaim(pvcCfg, ns)
 
 	var err error
