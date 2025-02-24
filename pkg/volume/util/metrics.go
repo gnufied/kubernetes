@@ -103,7 +103,7 @@ func OperationCompleteHook(plugin, operationName string) func(types.CompleteFunc
 		if c.Migrated != nil {
 			migrated = *c.Migrated
 		}
-		klog.Infof("foobar Operation %s took %d", operationName, timeTaken)
+		klog.Infof("foobar Operation %s took %f", operationName, timeTaken)
 		StorageOperationMetric.WithLabelValues(plugin, operationName, status, strconv.FormatBool(migrated)).Observe(timeTaken)
 	}
 	return opComplete
