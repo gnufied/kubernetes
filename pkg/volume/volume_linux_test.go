@@ -25,8 +25,11 @@ import (
 	"path/filepath"
 	"syscall"
 	"testing"
+	"time"
 
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/record"
 	utiltesting "k8s.io/client-go/util/testing"
 )
 
@@ -311,6 +314,123 @@ func TestSetVolumeOwnershipMode(t *testing.T) {
 			err = test.assertFunc(tmpDir)
 			if err != nil {
 				t.Errorf("for %s error verifying permissions with: %v", test.description, err)
+			}
+		})
+	}
+}
+
+func TestProgressTracking(t *testing.T) {
+	alwaysApplyPolicy := v1.FSGroupChangeAlways
+	var expectedGid int64 = 9999
+	var permissionSleepDuration = 5 * time.Millisecond
+	// how often to report the events
+	progressReportDuration = 200 * time.Millisecond
+	firstEventReportDuration = 50 * time.Millisecond
+
+	filePermissionChangeFunc = func(filename string, fsGroup *int64, _ bool, _ os.FileInfo) error {
+		t.Logf("Calling file permission change for %s with gid %d", filename, *fsGroup)
+		time.Sleep(permissionSleepDuration)
+		return nil
+	}
+	pod := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "pod1",
+			UID:  "pod1uid",
+		},
+		Spec: v1.PodSpec{
+			Volumes: []v1.Volume{
+				{
+					Name: "volume-name",
+					VolumeSource: v1.VolumeSource{
+						GCEPersistentDisk: &v1.GCEPersistentDiskVolumeSource{
+							PDName: "fake-device1",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	tests := []struct {
+		name                             string
+		filePermissionChangeTimeDuration time.Duration
+		totalWaitTime                    time.Duration
+		currentPod                       *v1.Pod
+		expectedEvents                   []string
+	}{
+		{
+			name:                             "When permission change finishes quickly, no events should be logged",
+			filePermissionChangeTimeDuration: 30 * time.Millisecond,
+			totalWaitTime:                    1 * time.Second,
+			currentPod:                       pod,
+			expectedEvents:                   []string{},
+		},
+		{
+			name:                             "When no pod is specified, no events should be logged",
+			filePermissionChangeTimeDuration: 300 * time.Millisecond,
+			totalWaitTime:                    1 * time.Second,
+			currentPod:                       nil,
+			expectedEvents:                   []string{},
+		},
+		{
+			name:                             "When permission change takes loo long and pod is specified",
+			filePermissionChangeTimeDuration: 300 * time.Millisecond,
+			totalWaitTime:                    1 * time.Second,
+			currentPod:                       pod,
+			expectedEvents: []string{
+				"Warning VolumePermissionChangeInProgress Setting volume ownership for pod1uid/volumes/faketype is taking longer than expected, consider using OnRootMismatch - https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#configure-volume-permission-and-ownership-change-policy-for-pods",
+				"Warning VolumePermissionChangeInProgress Setting volume ownership for pod1uid/volumes/faketype, processed 1 files.",
+			},
+		},
+	}
+
+	for i := range tests {
+		tc := tests[i]
+		t.Run(tc.name, func(t *testing.T) {
+			tmpDir, err := utiltesting.MkTmpdir("volume_linux_ownership")
+			if err != nil {
+				t.Fatalf("error creating temp dir: %v", err)
+			}
+			podUID := "placeholder"
+			if tc.currentPod != nil {
+				podUID = string(tc.currentPod.UID)
+			}
+			volumePath := filepath.Join(tmpDir, podUID, "volumes", "faketype")
+			err = os.MkdirAll(volumePath, 0770)
+			if err != nil {
+				t.Fatalf("error creating volumePath %s: %v", volumePath, err)
+			}
+
+			defer os.RemoveAll(tmpDir)
+			mounter := &localFakeMounter{path: "FAKE_DIR_DOESNT_EXIST"} // SetVolumeOwnership() must rely on tmpDir
+
+			fakeRecorder := record.NewFakeRecorder(100)
+			defer close(fakeRecorder.Events)
+
+			recordedEvents := []string{}
+
+			go func() {
+				for event := range fakeRecorder.Events {
+					recordedEvents = append(recordedEvents, event)
+				}
+			}()
+
+			// Set how long file permission change takes
+			permissionSleepDuration = tc.filePermissionChangeTimeDuration
+
+			ownershipChanger := NewVolumeOwnership(mounter, volumePath, &expectedGid, &alwaysApplyPolicy, nil)
+			if tc.currentPod != nil {
+				ownershipChanger.AddProgressNotifier(tc.currentPod, fakeRecorder)
+			}
+			err = ownershipChanger.ChangePermissions()
+			if err != nil {
+				t.Errorf("unexpected error: %+v", err)
+			}
+			time.Sleep(tc.totalWaitTime)
+			for i, event := range tc.expectedEvents {
+				if event != recordedEvents[i] {
+					t.Errorf("expected event %d to be %s, got: %s", i, event, recordedEvents[i])
+				}
 			}
 		})
 	}
