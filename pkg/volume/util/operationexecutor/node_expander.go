@@ -144,6 +144,15 @@ func (ne *NodeExpander) expandOnPlugin() (bool, resource.Quantity, error) {
 	}
 	_, resizeErr := ne.volumePlugin.NodeExpand(ne.pluginResizeOpts)
 	if resizeErr != nil {
+
+		// if volume is already expanded, then we should not retry
+		// expansion on the node if driver returns OperationNotSupportedError
+		if volumetypes.IsOperationNotSupportedError(resizeErr) && ne.pvcAlreadyUpdated {
+			klog.V(4).InfoS(ne.vmt.GenerateMsgDetailed("MountVolume.NodeExpandVolume failed", "NodeExpandVolume not supported"), "pod", klog.KObj(ne.vmt.Pod))
+			ne.testStatus = testResponseData{assumeResizeFinished: true, resizeCalledOnPlugin: false}
+			return true, ne.pluginResizeOpts.NewSize, nil
+		}
+
 		if volumetypes.IsOperationFinishedError(resizeErr) {
 			var markFailedError error
 			ne.actualStateOfWorld.MarkVolumeExpansionFailedWithFinalError(ne.vmt.VolumeName)
