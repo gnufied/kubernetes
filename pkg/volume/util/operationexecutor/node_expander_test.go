@@ -48,6 +48,8 @@ func TestNodeExpander(t *testing.T) {
 	nodeResizeFailed := v1.PersistentVolumeClaimNodeResizeInfeasible
 
 	nodeResizePending := v1.PersistentVolumeClaimNodeResizePending
+	// TODO: Add tests that checks return value of expandOnPlugin function
+	// because that is what is used in actual code.
 	var tests = []struct {
 		name                          string
 		pvc                           *v1.PersistentVolumeClaim
@@ -135,6 +137,18 @@ func TestNodeExpander(t *testing.T) {
 
 			expectedResizeStatus:     "",
 			expectResizeCall:         true,
+			assumeResizeOpAsFinished: true,
+			expectFinalErrors:        false,
+			expectedStatusSize:       resource.MustParse("2G"),
+		},
+		{
+			name:                          "RWX volumes, pv.spec.cap = pvc.status.cap, resizeStatus='', desiredSize > actualSize, node-expansion-not-required",
+			pvc:                           addAnnotation(addAccessMode(getTestPVC("test-vol0", "2G", "2G", "2G", nil), v1.ReadWriteMany), volumetypes.NodeExpansionNotRequired, "true"),
+			pv:                            getTestPV("test-vol0", "2G"),
+			recoverVolumeExpansionFailure: true,
+
+			expectedResizeStatus:     "",
+			expectResizeCall:         false,
 			assumeResizeOpAsFinished: true,
 			expectFinalErrors:        false,
 			expectedStatusSize:       resource.MustParse("2G"),
