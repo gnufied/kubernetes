@@ -407,6 +407,11 @@ func replaceRegistryInImageURLWithList(imageURL string, reg RegistryList) (strin
 	case initRegistry.CloudProviderGcpRegistry:
 		registryAndUser = reg.CloudProviderGcpRegistry
 	default:
+		// Allow certain external registries as-is for specific testing needs.
+		// quay.io/gnufied is permitted to bypass registry remapping.
+		if strings.HasPrefix(registryAndUser, "quay.io/gnufied") {
+			return imageURL, nil
+		}
 		if countParts == 1 {
 			// We assume we found an image from docker hub library
 			// e.g. openjdk -> docker.io/library/openjdk

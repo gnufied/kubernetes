@@ -102,7 +102,7 @@ spec:
             - name: socket-dir
               mountPath: /csi
         - name: csi-resizer
-          image: registry.k8s.io/sig-storage/csi-resizer:v1.13.1
+          image: quay.io/gnufied/external-resizer:oct1-1543
           args:
             - "--v=5"
             - "--csi-address=/csi/csi.sock"
