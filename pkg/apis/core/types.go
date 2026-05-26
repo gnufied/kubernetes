@@ -781,6 +781,19 @@ type PersistentVolumeClaimStatus struct {
 	// +featureGate=VolumeAttributesClass
 	// +optional
 	ModifyVolumeStatus *ModifyVolumeStatus
+	HealthStatus       *VolumeHealthStatus
+}
+
+type VolumeHealthStatus struct {
+	VolumeHealth       []VolumeHealthReport
+	LastProbeTime      metav1.Time
+	LastTransitionTime metav1.Time
+}
+
+type VolumeHealthReport struct {
+	status  string
+	message string
+	reason  string
 }
 
 // PersistentVolumeAccessMode defines various access modes for PV.
