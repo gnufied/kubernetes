@@ -227,6 +227,7 @@ require (
 )
 
 replace (
+	github.com/container-storage-interface/spec => github.com/gnufied/spec v1.7.1-0.20260617170919-ef549d36c460
 	k8s.io/api => ./staging/src/k8s.io/api
 	k8s.io/apiextensions-apiserver => ./staging/src/k8s.io/apiextensions-apiserver
 	k8s.io/apimachinery => ./staging/src/k8s.io/apimachinery
