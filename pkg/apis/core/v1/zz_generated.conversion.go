@@ -1652,6 +1652,16 @@ func RegisterConversions(s *runtime.Scheme) error {
 	}); err != nil {
 		return err
 	}
+	if err := s.AddGeneratedConversionFunc((*corev1.PodVolumeHealth)(nil), (*core.PodVolumeHealth)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1_PodVolumeHealth_To_core_PodVolumeHealth(a.(*corev1.PodVolumeHealth), b.(*core.PodVolumeHealth), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*core.PodVolumeHealth)(nil), (*corev1.PodVolumeHealth)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_core_PodVolumeHealth_To_v1_PodVolumeHealth(a.(*core.PodVolumeHealth), b.(*corev1.PodVolumeHealth), scope)
+	}); err != nil {
+		return err
+	}
 	if err := s.AddGeneratedConversionFunc((*corev1.PortStatus)(nil), (*core.PortStatus)(nil), func(a, b interface{}, scope conversion.Scope) error {
 		return Convert_v1_PortStatus_To_core_PortStatus(a.(*corev1.PortStatus), b.(*core.PortStatus), scope)
 	}); err != nil {
@@ -2284,6 +2294,26 @@ func RegisterConversions(s *runtime.Scheme) error {
 	}
 	if err := s.AddGeneratedConversionFunc((*core.VolumeDevice)(nil), (*corev1.VolumeDevice)(nil), func(a, b interface{}, scope conversion.Scope) error {
 		return Convert_core_VolumeDevice_To_v1_VolumeDevice(a.(*core.VolumeDevice), b.(*corev1.VolumeDevice), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*corev1.VolumeHealthCondition)(nil), (*core.VolumeHealthCondition)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1_VolumeHealthCondition_To_core_VolumeHealthCondition(a.(*corev1.VolumeHealthCondition), b.(*core.VolumeHealthCondition), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*core.VolumeHealthCondition)(nil), (*corev1.VolumeHealthCondition)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_core_VolumeHealthCondition_To_v1_VolumeHealthCondition(a.(*core.VolumeHealthCondition), b.(*corev1.VolumeHealthCondition), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*corev1.VolumeHealthStatus)(nil), (*core.VolumeHealthStatus)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1_VolumeHealthStatus_To_core_VolumeHealthStatus(a.(*corev1.VolumeHealthStatus), b.(*core.VolumeHealthStatus), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*core.VolumeHealthStatus)(nil), (*corev1.VolumeHealthStatus)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_core_VolumeHealthStatus_To_v1_VolumeHealthStatus(a.(*core.VolumeHealthStatus), b.(*corev1.VolumeHealthStatus), scope)
 	}); err != nil {
 		return err
 	}
@@ -5948,6 +5978,7 @@ func autoConvert_v1_PersistentVolumeClaimStatus_To_core_PersistentVolumeClaimSta
 	out.AllocatedResourceStatuses = *(*map[core.ResourceName]core.ClaimResourceStatus)(unsafe.Pointer(&in.AllocatedResourceStatuses))
 	out.CurrentVolumeAttributesClassName = (*string)(unsafe.Pointer(in.CurrentVolumeAttributesClassName))
 	out.ModifyVolumeStatus = (*core.ModifyVolumeStatus)(unsafe.Pointer(in.ModifyVolumeStatus))
+	out.HealthStatus = (*core.VolumeHealthStatus)(unsafe.Pointer(in.HealthStatus))
 	return nil
 }
 
@@ -5965,6 +5996,7 @@ func autoConvert_core_PersistentVolumeClaimStatus_To_v1_PersistentVolumeClaimSta
 	out.AllocatedResourceStatuses = *(*map[corev1.ResourceName]corev1.ClaimResourceStatus)(unsafe.Pointer(&in.AllocatedResourceStatuses))
 	out.CurrentVolumeAttributesClassName = (*string)(unsafe.Pointer(in.CurrentVolumeAttributesClassName))
 	out.ModifyVolumeStatus = (*corev1.ModifyVolumeStatus)(unsafe.Pointer(in.ModifyVolumeStatus))
+	out.HealthStatus = (*corev1.VolumeHealthStatus)(unsafe.Pointer(in.HealthStatus))
 	return nil
 }
 
@@ -7159,6 +7191,7 @@ func autoConvert_v1_PodStatus_To_core_PodStatus(in *corev1.PodStatus, out *core.
 	out.AllocatedResources = *(*core.ResourceList)(unsafe.Pointer(&in.AllocatedResources))
 	out.Resources = (*core.ResourceRequirements)(unsafe.Pointer(in.Resources))
 	out.NodeAllocatableResourceClaimStatuses = *(*[]core.NodeAllocatableResourceClaimStatus)(unsafe.Pointer(&in.NodeAllocatableResourceClaimStatuses))
+	out.VolumeHealth = *(*[]core.PodVolumeHealth)(unsafe.Pointer(&in.VolumeHealth))
 	return nil
 }
 
@@ -7189,6 +7222,7 @@ func autoConvert_core_PodStatus_To_v1_PodStatus(in *core.PodStatus, out *corev1.
 	out.AllocatedResources = *(*corev1.ResourceList)(unsafe.Pointer(&in.AllocatedResources))
 	out.Resources = (*corev1.ResourceRequirements)(unsafe.Pointer(in.Resources))
 	out.NodeAllocatableResourceClaimStatuses = *(*[]corev1.NodeAllocatableResourceClaimStatus)(unsafe.Pointer(&in.NodeAllocatableResourceClaimStatuses))
+	out.VolumeHealth = *(*[]corev1.PodVolumeHealth)(unsafe.Pointer(&in.VolumeHealth))
 	return nil
 }
 
@@ -7279,6 +7313,30 @@ func autoConvert_core_PodTemplateSpec_To_v1_PodTemplateSpec(in *core.PodTemplate
 		return err
 	}
 	return nil
+}
+
+func autoConvert_v1_PodVolumeHealth_To_core_PodVolumeHealth(in *corev1.PodVolumeHealth, out *core.PodVolumeHealth, s conversion.Scope) error {
+	out.Name = in.Name
+	out.Conditions = *(*[]core.VolumeHealthCondition)(unsafe.Pointer(&in.Conditions))
+	out.LastTransitionTime = in.LastTransitionTime
+	return nil
+}
+
+// Convert_v1_PodVolumeHealth_To_core_PodVolumeHealth is an autogenerated conversion function.
+func Convert_v1_PodVolumeHealth_To_core_PodVolumeHealth(in *corev1.PodVolumeHealth, out *core.PodVolumeHealth, s conversion.Scope) error {
+	return autoConvert_v1_PodVolumeHealth_To_core_PodVolumeHealth(in, out, s)
+}
+
+func autoConvert_core_PodVolumeHealth_To_v1_PodVolumeHealth(in *core.PodVolumeHealth, out *corev1.PodVolumeHealth, s conversion.Scope) error {
+	out.Name = in.Name
+	out.Conditions = *(*[]corev1.VolumeHealthCondition)(unsafe.Pointer(&in.Conditions))
+	out.LastTransitionTime = in.LastTransitionTime
+	return nil
+}
+
+// Convert_core_PodVolumeHealth_To_v1_PodVolumeHealth is an autogenerated conversion function.
+func Convert_core_PodVolumeHealth_To_v1_PodVolumeHealth(in *core.PodVolumeHealth, out *corev1.PodVolumeHealth, s conversion.Scope) error {
+	return autoConvert_core_PodVolumeHealth_To_v1_PodVolumeHealth(in, out, s)
 }
 
 func autoConvert_v1_PortStatus_To_core_PortStatus(in *corev1.PortStatus, out *core.PortStatus, s conversion.Scope) error {
@@ -9083,6 +9141,52 @@ func autoConvert_core_VolumeDevice_To_v1_VolumeDevice(in *core.VolumeDevice, out
 // Convert_core_VolumeDevice_To_v1_VolumeDevice is an autogenerated conversion function.
 func Convert_core_VolumeDevice_To_v1_VolumeDevice(in *core.VolumeDevice, out *corev1.VolumeDevice, s conversion.Scope) error {
 	return autoConvert_core_VolumeDevice_To_v1_VolumeDevice(in, out, s)
+}
+
+func autoConvert_v1_VolumeHealthCondition_To_core_VolumeHealthCondition(in *corev1.VolumeHealthCondition, out *core.VolumeHealthCondition, s conversion.Scope) error {
+	out.Status = core.VolumeHealthStatusType(in.Status)
+	out.Reason = in.Reason
+	out.Message = in.Message
+	return nil
+}
+
+// Convert_v1_VolumeHealthCondition_To_core_VolumeHealthCondition is an autogenerated conversion function.
+func Convert_v1_VolumeHealthCondition_To_core_VolumeHealthCondition(in *corev1.VolumeHealthCondition, out *core.VolumeHealthCondition, s conversion.Scope) error {
+	return autoConvert_v1_VolumeHealthCondition_To_core_VolumeHealthCondition(in, out, s)
+}
+
+func autoConvert_core_VolumeHealthCondition_To_v1_VolumeHealthCondition(in *core.VolumeHealthCondition, out *corev1.VolumeHealthCondition, s conversion.Scope) error {
+	out.Status = corev1.VolumeHealthStatusType(in.Status)
+	out.Reason = in.Reason
+	out.Message = in.Message
+	return nil
+}
+
+// Convert_core_VolumeHealthCondition_To_v1_VolumeHealthCondition is an autogenerated conversion function.
+func Convert_core_VolumeHealthCondition_To_v1_VolumeHealthCondition(in *core.VolumeHealthCondition, out *corev1.VolumeHealthCondition, s conversion.Scope) error {
+	return autoConvert_core_VolumeHealthCondition_To_v1_VolumeHealthCondition(in, out, s)
+}
+
+func autoConvert_v1_VolumeHealthStatus_To_core_VolumeHealthStatus(in *corev1.VolumeHealthStatus, out *core.VolumeHealthStatus, s conversion.Scope) error {
+	out.Conditions = *(*[]core.VolumeHealthCondition)(unsafe.Pointer(&in.Conditions))
+	out.LastTransitionTime = in.LastTransitionTime
+	return nil
+}
+
+// Convert_v1_VolumeHealthStatus_To_core_VolumeHealthStatus is an autogenerated conversion function.
+func Convert_v1_VolumeHealthStatus_To_core_VolumeHealthStatus(in *corev1.VolumeHealthStatus, out *core.VolumeHealthStatus, s conversion.Scope) error {
+	return autoConvert_v1_VolumeHealthStatus_To_core_VolumeHealthStatus(in, out, s)
+}
+
+func autoConvert_core_VolumeHealthStatus_To_v1_VolumeHealthStatus(in *core.VolumeHealthStatus, out *corev1.VolumeHealthStatus, s conversion.Scope) error {
+	out.Conditions = *(*[]corev1.VolumeHealthCondition)(unsafe.Pointer(&in.Conditions))
+	out.LastTransitionTime = in.LastTransitionTime
+	return nil
+}
+
+// Convert_core_VolumeHealthStatus_To_v1_VolumeHealthStatus is an autogenerated conversion function.
+func Convert_core_VolumeHealthStatus_To_v1_VolumeHealthStatus(in *core.VolumeHealthStatus, out *corev1.VolumeHealthStatus, s conversion.Scope) error {
+	return autoConvert_core_VolumeHealthStatus_To_v1_VolumeHealthStatus(in, out, s)
 }
 
 func autoConvert_v1_VolumeMount_To_core_VolumeMount(in *corev1.VolumeMount, out *core.VolumeMount, s conversion.Scope) error {
