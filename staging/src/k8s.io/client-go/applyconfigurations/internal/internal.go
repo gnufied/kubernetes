@@ -6509,6 +6509,9 @@ var schemaYAML = typed.YAMLObject(`types:
     - name: currentVolumeAttributesClassName
       type:
         scalar: string
+    - name: healthStatus
+      type:
+        namedType: io.k8s.api.core.v1.VolumeHealthStatus
     - name: modifyVolumeStatus
       type:
         namedType: io.k8s.api.core.v1.ModifyVolumeStatus
@@ -7236,6 +7239,14 @@ var schemaYAML = typed.YAMLObject(`types:
     - name: startTime
       type:
         namedType: io.k8s.apimachinery.pkg.apis.meta.v1.Time
+    - name: volumeHealth
+      type:
+        list:
+          elementType:
+            namedType: io.k8s.api.core.v1.PodVolumeHealth
+          elementRelationship: associative
+          keys:
+          - name
 - name: io.k8s.api.core.v1.PodTemplate
   map:
     fields:
@@ -7264,6 +7275,25 @@ var schemaYAML = typed.YAMLObject(`types:
       type:
         namedType: io.k8s.api.core.v1.PodSpec
       default: {}
+- name: io.k8s.api.core.v1.PodVolumeHealth
+  map:
+    fields:
+    - name: healthConditions
+      type:
+        list:
+          elementType:
+            namedType: io.k8s.api.core.v1.VolumeHealthCondition
+          elementRelationship: associative
+          keys:
+          - status
+          - reason
+    - name: lastTransitionTime
+      type:
+        namedType: io.k8s.apimachinery.pkg.apis.meta.v1.Time
+    - name: name
+      type:
+        scalar: string
+      default: ""
 - name: io.k8s.api.core.v1.PortStatus
   map:
     fields:
@@ -8404,6 +8434,35 @@ var schemaYAML = typed.YAMLObject(`types:
       type:
         scalar: string
       default: ""
+- name: io.k8s.api.core.v1.VolumeHealthCondition
+  map:
+    fields:
+    - name: message
+      type:
+        scalar: string
+    - name: reason
+      type:
+        scalar: string
+      default: ""
+    - name: status
+      type:
+        scalar: string
+      default: ""
+- name: io.k8s.api.core.v1.VolumeHealthStatus
+  map:
+    fields:
+    - name: healthConditions
+      type:
+        list:
+          elementType:
+            namedType: io.k8s.api.core.v1.VolumeHealthCondition
+          elementRelationship: associative
+          keys:
+          - status
+          - reason
+    - name: lastTransitionTime
+      type:
+        namedType: io.k8s.apimachinery.pkg.apis.meta.v1.Time
 - name: io.k8s.api.core.v1.VolumeMount
   map:
     fields:
@@ -15147,6 +15206,10 @@ var schemaYAML = typed.YAMLObject(`types:
       type:
         namedType: io.k8s.api.storage.v1.CSINodeSpec
       default: {}
+    - name: status
+      type:
+        namedType: io.k8s.api.storage.v1.CSINodeStatus
+      default: {}
 - name: io.k8s.api.storage.v1.CSINodeDriver
   map:
     fields:
@@ -15178,6 +15241,19 @@ var schemaYAML = typed.YAMLObject(`types:
           elementRelationship: associative
           keys:
           - name
+- name: io.k8s.api.storage.v1.CSINodeStatus
+  map:
+    fields:
+    - name: storageHealth
+      type:
+        list:
+          elementType:
+            namedType: io.k8s.api.storage.v1.StorageHealthCondition
+          elementRelationship: associative
+          keys:
+          - name
+          - status
+          - reason
 - name: io.k8s.api.storage.v1.CSIStorageCapacity
   map:
     fields:
@@ -15245,6 +15321,36 @@ var schemaYAML = typed.YAMLObject(`types:
       type:
         scalar: string
     - name: volumeBindingMode
+      type:
+        scalar: string
+- name: io.k8s.api.storage.v1.StorageHealthCondition
+  map:
+    fields:
+    - name: accessModes
+      type:
+        list:
+          elementType:
+            scalar: string
+          elementRelationship: atomic
+    - name: lastTransitionTime
+      type:
+        namedType: io.k8s.apimachinery.pkg.apis.meta.v1.Time
+    - name: message
+      type:
+        scalar: string
+    - name: name
+      type:
+        scalar: string
+      default: ""
+    - name: reason
+      type:
+        scalar: string
+      default: ""
+    - name: status
+      type:
+        scalar: string
+      default: ""
+    - name: volumeMode
       type:
         scalar: string
 - name: io.k8s.api.storage.v1.TokenRequest
@@ -15559,6 +15665,10 @@ var schemaYAML = typed.YAMLObject(`types:
       type:
         namedType: io.k8s.api.storage.v1beta1.CSINodeSpec
       default: {}
+    - name: status
+      type:
+        namedType: io.k8s.api.storage.v1beta1.CSINodeStatus
+      default: {}
 - name: io.k8s.api.storage.v1beta1.CSINodeDriver
   map:
     fields:
@@ -15590,6 +15700,19 @@ var schemaYAML = typed.YAMLObject(`types:
           elementRelationship: associative
           keys:
           - name
+- name: io.k8s.api.storage.v1beta1.CSINodeStatus
+  map:
+    fields:
+    - name: storageHealth
+      type:
+        list:
+          elementType:
+            namedType: io.k8s.api.storage.v1beta1.StorageHealthCondition
+          elementRelationship: associative
+          keys:
+          - name
+          - status
+          - reason
 - name: io.k8s.api.storage.v1beta1.CSIStorageCapacity
   map:
     fields:
@@ -15657,6 +15780,36 @@ var schemaYAML = typed.YAMLObject(`types:
       type:
         scalar: string
     - name: volumeBindingMode
+      type:
+        scalar: string
+- name: io.k8s.api.storage.v1beta1.StorageHealthCondition
+  map:
+    fields:
+    - name: accessModes
+      type:
+        list:
+          elementType:
+            scalar: string
+          elementRelationship: atomic
+    - name: lastTransitionTime
+      type:
+        namedType: io.k8s.apimachinery.pkg.apis.meta.v1.Time
+    - name: message
+      type:
+        scalar: string
+    - name: name
+      type:
+        scalar: string
+      default: ""
+    - name: reason
+      type:
+        scalar: string
+      default: ""
+    - name: status
+      type:
+        scalar: string
+      default: ""
+    - name: volumeMode
       type:
         scalar: string
 - name: io.k8s.api.storage.v1beta1.TokenRequest
