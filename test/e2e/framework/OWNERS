@@ -5,12 +5,14 @@ approvers:
   - pohly
   - oomichi
   - SataQiu
+  - gnufied
 reviewers:
   - sig-testing-reviewers
   - andrewsykim
   - pohly
   - oomichi
   - SataQiu
+  - gnufied
 labels:
   - area/e2e-test-framework
 emeritus_approvers:
