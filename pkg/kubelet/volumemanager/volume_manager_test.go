@@ -319,7 +319,9 @@ func TestWaitForAttachAndMountVolumeAttachLimitExceededError(t *testing.T) {
 		hostutil.NewFakeHostUtil(nil),
 		"",
 		&record.FakeRecorder{},
-		volumetest.NewBlockVolumePathHandler())
+		volumetest.NewBlockVolumePathHandler(),
+		nil,
+		0)
 
 	tCtx := ktesting.Init(t)
 	t.Cleanup(func() { tCtx.Cancel("test has completed") })
@@ -527,7 +529,9 @@ func newTestVolumeManager(t *testing.T, tmpDir string, podManager kubepod.Manage
 		hostutil.NewFakeHostUtil(nil),
 		"",
 		fakeRecorder,
-		fakePathHandler)
+		fakePathHandler,
+		nil,
+		0)
 
 	return vm
 }

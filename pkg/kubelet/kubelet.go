@@ -1072,7 +1072,9 @@ func NewMainKubelet(ctx context.Context,
 		kubeDeps.HostUtil,
 		klet.getPodsDir(),
 		kubeDeps.Recorder,
-		volumepathhandler.NewBlockVolumePathHandler())
+		volumepathhandler.NewBlockVolumePathHandler(),
+		klet.statusManager,
+		kubeCfg.VolumeStatsAggPeriod.Duration)
 
 	boMax, base := newCrashLoopBackOff(kubeCfg)
 

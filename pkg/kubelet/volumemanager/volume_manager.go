@@ -45,6 +45,7 @@ import (
 	"k8s.io/kubernetes/pkg/kubelet/volumemanager/metrics"
 	"k8s.io/kubernetes/pkg/kubelet/volumemanager/populator"
 	"k8s.io/kubernetes/pkg/kubelet/volumemanager/reconciler"
+	"k8s.io/kubernetes/pkg/kubelet/volumemanager/volumehealth"
 	"k8s.io/kubernetes/pkg/volume"
 	"k8s.io/kubernetes/pkg/volume/csimigration"
 	"k8s.io/kubernetes/pkg/volume/util"
@@ -191,7 +192,9 @@ func NewVolumeManager(
 	hostutil hostutil.HostUtils,
 	kubeletPodsDir string,
 	recorder record.EventRecorder,
-	blockVolumePathHandler volumepathhandler.BlockVolumePathHandler) VolumeManager {
+	blockVolumePathHandler volumepathhandler.BlockVolumePathHandler,
+	volumeHealthStatusUpdater volumehealth.StatusUpdater,
+	volumeHealthProbeInterval time.Duration) VolumeManager {
 
 	seLinuxTranslator := util.NewSELinuxLabelTranslator()
 	vm := &volumeManager{
@@ -236,6 +239,13 @@ func NewVolumeManager(
 		volumePluginMgr,
 		kubeletPodsDir)
 
+	if utilfeature.DefaultFeatureGate.Enabled(features.CSIVolumeHealth) {
+		vm.volumeHealthManager = volumehealth.NewManager(
+			vm.desiredStateOfWorld,
+			vm.actualStateOfWorld,
+			volumeHealthStatusUpdater,
+			volumeHealthProbeInterval)
+	}
 	return vm
 }
 
@@ -276,6 +286,10 @@ type volumeManager struct {
 	// populate the desiredStateOfWorld using the kubelet PodManager.
 	desiredStateOfWorldPopulator populator.DesiredStateOfWorldPopulator
 
+	// volumeHealthManager periodically probes CSI volume/storage health and
+	// writes PodStatus.VolumeHealth / CSINode.Status.StorageHealth.
+	volumeHealthManager volumehealth.Manager
+
 	// csiMigratedPluginManager keeps track of CSI migration status of plugins
 	csiMigratedPluginManager csimigration.PluginManager
 
@@ -309,6 +323,10 @@ func (vm *volumeManager) Run(ctx context.Context, sourcesReady config.SourcesRea
 
 	logger.Info("Starting Kubelet Volume Manager")
 	go vm.reconciler.Run(ctx, ctx.Done())
+
+	if vm.volumeHealthManager != nil {
+		go vm.volumeHealthManager.Run(ctx)
+	}
 
 	metrics.Register(vm.actualStateOfWorld, vm.desiredStateOfWorld, vm.volumePluginMgr)
 
