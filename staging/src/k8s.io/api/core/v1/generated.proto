@@ -3418,6 +3418,7 @@ message PersistentVolumeClaimStatus {
   // for the volume bound to this claim.
   // +featureGate=CSIVolumeHealth
   // +optional
+  // +k8s:optional
   optional VolumeHealthStatus healthStatus = 10;
 }
 
@@ -5021,6 +5022,7 @@ message PodStatus {
   // +optional
   // +listType=map
   // +listMapKey=name
+  // +k8s:optional
   repeated PodVolumeHealth volumeHealth = 22;
 }
 
@@ -5073,7 +5075,10 @@ message PodVolumeHealth {
   // +optional
   // +listType=map
   // +listMapKey=status
+  // +patchMergeKey=status
+  // +patchStrategy=merge
   // +listMapKey=reason
+  // +k8s:optional
   repeated VolumeHealthCondition healthConditions = 2;
 
   // lastTransitionTime is when the current set of conditions first appeared.
@@ -6939,10 +6944,15 @@ message VolumeHealthCondition {
 
   // reason is a brief CamelCase machine-parseable reason.
   // Together with status it forms the unique identity of a condition entry.
+  // +k8s:maxLength=256
+  // +k8s:required
+  // +required
   optional string reason = 2;
 
   // message is a human-readable description.
   // +optional
+  // +k8s:optional
+  // +k8s:maxLength=1024
   optional string message = 3;
 }
 
@@ -6954,7 +6964,11 @@ message VolumeHealthStatus {
   // +optional
   // +listType=map
   // +listMapKey=status
+  // +patchMergeKey=status
+  // +patchStrategy=merge
   // +listMapKey=reason
+  // +k8s:maxItems=16
+  // +k8s:optional
   repeated VolumeHealthCondition healthConditions = 1;
 
   // lastTransitionTime is when the current set of conditions first appeared.

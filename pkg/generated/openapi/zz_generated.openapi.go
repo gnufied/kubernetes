@@ -29055,7 +29055,9 @@ func schema_k8sio_api_core_v1_PodVolumeHealth(ref common.ReferenceCallback) comm
 									"status",
 									"reason",
 								},
-								"x-kubernetes-list-type": "map",
+								"x-kubernetes-list-type":       "map",
+								"x-kubernetes-patch-merge-key": "status",
+								"x-kubernetes-patch-strategy":  "merge",
 							},
 						},
 						SchemaProps: spec.SchemaProps{
@@ -32673,7 +32675,9 @@ func schema_k8sio_api_core_v1_VolumeHealthStatus(ref common.ReferenceCallback) c
 									"status",
 									"reason",
 								},
-								"x-kubernetes-list-type": "map",
+								"x-kubernetes-list-type":       "map",
+								"x-kubernetes-patch-merge-key": "status",
+								"x-kubernetes-patch-strategy":  "merge",
 							},
 						},
 						SchemaProps: spec.SchemaProps{
@@ -55640,7 +55644,9 @@ func schema_k8sio_api_storage_v1_CSINodeStatus(ref common.ReferenceCallback) com
 									"status",
 									"reason",
 								},
-								"x-kubernetes-list-type": "map",
+								"x-kubernetes-list-type":       "map",
+								"x-kubernetes-patch-merge-key": "name",
+								"x-kubernetes-patch-strategy":  "merge",
 							},
 						},
 						SchemaProps: spec.SchemaProps{
@@ -57339,7 +57345,9 @@ func schema_k8sio_api_storage_v1beta1_CSINodeStatus(ref common.ReferenceCallback
 									"status",
 									"reason",
 								},
-								"x-kubernetes-list-type": "map",
+								"x-kubernetes-list-type":       "map",
+								"x-kubernetes-patch-merge-key": "name",
+								"x-kubernetes-patch-strategy":  "merge",
 							},
 						},
 						SchemaProps: spec.SchemaProps{

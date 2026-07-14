@@ -694,15 +694,24 @@ const (
 // by a CSI driver for its storage backend on a node.
 type StorageHealthCondition struct {
 	// name is the CSI driver name, matching CSINodeDriver.name.
+	// +required
+	// +k8s:required
 	Name string `json:"name" protobuf:"bytes,1,opt,name=name"`
 	// status is the health status category.
 	// One of "StorageUnreachable", "StorageDegraded".
+	// +required
+	// +k8s:required
 	Status StorageHealthStatusType `json:"status" protobuf:"bytes,2,opt,name=status,casttype=StorageHealthStatusType"`
 	// reason is a brief CamelCase machine-parseable reason.
 	// Together with name and status it forms the unique identity of a condition entry.
+	// +required
+	// +k8s:required
+	// +k8s:maxLength=256
 	Reason string `json:"reason" protobuf:"bytes,3,opt,name=reason"`
 	// message is a human-readable description.
 	// +optional
+	// +k8s:optional
+	// +k8s:maxLength=1024
 	Message string `json:"message,omitempty" protobuf:"bytes,4,opt,name=message"`
 	// accessModes are the access modes affected. An empty list means all access modes are affected.
 	// +optional
@@ -725,8 +734,12 @@ type CSINodeStatus struct {
 	// +listMapKey=name
 	// +listMapKey=status
 	// +listMapKey=reason
+	// +patchMergeKey=name
+	// +patchStrategy=merge
 	// +featureGate=CSIVolumeHealth
-	StorageHealth []StorageHealthCondition `json:"storageHealth,omitempty" protobuf:"bytes,1,rep,name=storageHealth"`
+	// +k8s:maxItems=16
+	// +k8s:optional
+	StorageHealth []StorageHealthCondition `json:"storageHealth,omitempty" patchStrategy:"merge" patchMergeKey:"name" protobuf:"bytes,1,rep,name=storageHealth"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

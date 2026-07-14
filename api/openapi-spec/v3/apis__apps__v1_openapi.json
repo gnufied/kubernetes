@@ -5125,7 +5125,9 @@
               "status",
               "reason"
             ],
-            "x-kubernetes-list-type": "map"
+            "x-kubernetes-list-type": "map",
+            "x-kubernetes-patch-merge-key": "status",
+            "x-kubernetes-patch-strategy": "merge"
           },
           "lastTransitionTime": {
             "allOf": [

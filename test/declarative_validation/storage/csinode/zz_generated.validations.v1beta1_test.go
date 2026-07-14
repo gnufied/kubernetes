@@ -61,6 +61,22 @@ func init() {
 			"metadata.uid": {
 				{ErrorType: "FieldValueInvalid", Origin: "immutable"},
 			},
+			"status.storageHealth": {
+				{ErrorType: "FieldValueTooMany", Origin: "maxItems"},
+			},
+			"status.storageHealth[*].message": {
+				{ErrorType: "FieldValueTooLong", Origin: "maxLength"},
+			},
+			"status.storageHealth[*].name": {
+				{ErrorType: "FieldValueRequired"},
+			},
+			"status.storageHealth[*].reason": {
+				{ErrorType: "FieldValueRequired"},
+				{ErrorType: "FieldValueTooLong", Origin: "maxLength"},
+			},
+			"status.storageHealth[*].status": {
+				{ErrorType: "FieldValueRequired"},
+			},
 		},
 	)
 }

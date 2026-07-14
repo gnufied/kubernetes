@@ -64,6 +64,13 @@ func init() {
 			"spec.tolerations[*].key": {
 				{ErrorType: "FieldValueInvalid", Origin: "format=k8s-label-key"},
 			},
+			"status.volumeHealth[*].healthConditions[*].message": {
+				{ErrorType: "FieldValueTooLong", Origin: "maxLength"},
+			},
+			"status.volumeHealth[*].healthConditions[*].reason": {
+				{ErrorType: "FieldValueRequired"},
+				{ErrorType: "FieldValueTooLong", Origin: "maxLength"},
+			},
 		},
 	)
 }

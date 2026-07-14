@@ -785,9 +785,14 @@ type VolumeHealthCondition struct {
 	Status VolumeHealthStatusType `json:"status" protobuf:"bytes,1,opt,name=status,casttype=VolumeHealthStatusType"`
 	// reason is a brief CamelCase machine-parseable reason.
 	// Together with status it forms the unique identity of a condition entry.
+	// +k8s:maxLength=256
+	// +k8s:required
+	// +required
 	Reason string `json:"reason" protobuf:"bytes,2,opt,name=reason"`
 	// message is a human-readable description.
 	// +optional
+	// +k8s:optional
+	// +k8s:maxLength=1024
 	Message string `json:"message,omitempty" protobuf:"bytes,3,opt,name=message"`
 }
 
@@ -799,8 +804,12 @@ type VolumeHealthStatus struct {
 	// +optional
 	// +listType=map
 	// +listMapKey=status
+	// +patchMergeKey=status
+	// +patchStrategy=merge
 	// +listMapKey=reason
-	HealthConditions []VolumeHealthCondition `json:"healthConditions,omitempty" protobuf:"bytes,1,rep,name=healthConditions"`
+	// +k8s:maxItems=16
+	// +k8s:optional
+	HealthConditions []VolumeHealthCondition `json:"healthConditions,omitempty" patchStrategy:"merge" patchMergeKey:"status" protobuf:"bytes,1,rep,name=healthConditions"`
 	// lastTransitionTime is when the current set of conditions first appeared.
 	// +optional
 	LastTransitionTime metav1.Time `json:"lastTransitionTime,omitempty" protobuf:"bytes,2,opt,name=lastTransitionTime"`
@@ -816,8 +825,11 @@ type PodVolumeHealth struct {
 	// +optional
 	// +listType=map
 	// +listMapKey=status
+	// +patchMergeKey=status
+	// +patchStrategy=merge
 	// +listMapKey=reason
-	HealthConditions []VolumeHealthCondition `json:"healthConditions,omitempty" protobuf:"bytes,2,rep,name=healthConditions"`
+	// +k8s:optional
+	HealthConditions []VolumeHealthCondition `json:"healthConditions,omitempty" patchStrategy:"merge" patchMergeKey:"status" protobuf:"bytes,2,rep,name=healthConditions"`
 	// lastTransitionTime is when the current set of conditions first appeared.
 	// +optional
 	LastTransitionTime metav1.Time `json:"lastTransitionTime,omitempty" protobuf:"bytes,3,opt,name=lastTransitionTime"`
@@ -920,6 +932,7 @@ type PersistentVolumeClaimStatus struct {
 	// for the volume bound to this claim.
 	// +featureGate=CSIVolumeHealth
 	// +optional
+	// +k8s:optional
 	HealthStatus *VolumeHealthStatus `json:"healthStatus,omitempty" protobuf:"bytes,10,opt,name=healthStatus"`
 }
 
@@ -5547,6 +5560,7 @@ type PodStatus struct {
 	// +optional
 	// +listType=map
 	// +listMapKey=name
+	// +k8s:optional
 	VolumeHealth []PodVolumeHealth `json:"volumeHealth,omitempty" protobuf:"bytes,22,rep,name=volumeHealth"`
 }
 

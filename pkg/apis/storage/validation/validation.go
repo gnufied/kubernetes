@@ -314,7 +314,7 @@ var validStorageHealthStatusTypes = sets.New(
 func validateStorageHealthCondition(condition storage.StorageHealthCondition, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 	if len(condition.Name) == 0 {
-		allErrs = append(allErrs, field.Required(fldPath.Child("name"), ""))
+		allErrs = append(allErrs, field.Required(fldPath.Child("name"), "").MarkCoveredByDeclarative())
 	} else {
 		allErrs = append(allErrs, apivalidation.ValidateCSIDriverName(condition.Name, fldPath.Child("name"))...)
 	}
@@ -322,12 +322,12 @@ func validateStorageHealthCondition(condition storage.StorageHealthCondition, fl
 		allErrs = append(allErrs, field.NotSupported(fldPath.Child("status"), condition.Status, sets.List(validStorageHealthStatusTypes)))
 	}
 	if len(condition.Reason) == 0 {
-		allErrs = append(allErrs, field.Required(fldPath.Child("reason"), ""))
+		allErrs = append(allErrs, field.Required(fldPath.Child("reason"), "").MarkCoveredByDeclarative())
 	} else if len(condition.Reason) > 256 {
-		allErrs = append(allErrs, field.TooLong(fldPath.Child("reason"), condition.Reason, 256))
+		allErrs = append(allErrs, field.TooLong(fldPath.Child("reason"), condition.Reason, 256).MarkCoveredByDeclarative())
 	}
 	if len(condition.Message) > 1024 {
-		allErrs = append(allErrs, field.TooLong(fldPath.Child("message"), condition.Message, 1024))
+		allErrs = append(allErrs, field.TooLong(fldPath.Child("message"), condition.Message, 1024).MarkCoveredByDeclarative())
 	}
 	return allErrs
 }

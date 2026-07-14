@@ -2678,12 +2678,12 @@ func validateVolumeHealthCondition(condition core.VolumeHealthCondition, fldPath
 		allErrs = append(allErrs, field.NotSupported(fldPath.Child("status"), condition.Status, sets.List(validVolumeHealthStatusTypes)))
 	}
 	if len(condition.Reason) == 0 {
-		allErrs = append(allErrs, field.Required(fldPath.Child("reason"), ""))
+		allErrs = append(allErrs, field.Required(fldPath.Child("reason"), "").MarkCoveredByDeclarative())
 	} else if len(condition.Reason) > 256 {
-		allErrs = append(allErrs, field.TooLong(fldPath.Child("reason"), condition.Reason, 256))
+		allErrs = append(allErrs, field.TooLong(fldPath.Child("reason"), condition.Reason, 256).MarkCoveredByDeclarative())
 	}
 	if len(condition.Message) > 1024 {
-		allErrs = append(allErrs, field.TooLong(fldPath.Child("message"), condition.Message, 1024))
+		allErrs = append(allErrs, field.TooLong(fldPath.Child("message"), condition.Message, 1024).MarkCoveredByDeclarative())
 	}
 	return allErrs
 }
